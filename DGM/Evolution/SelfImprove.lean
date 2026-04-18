@@ -267,7 +267,7 @@ def selfImprove (config : SelfImproveConfig) : IO SelfImproveResult := do
   let modelPatchExists ← System.FilePath.pathExists ⟨modelPatchPath⟩
   let modelPatchNotEmpty ← if modelPatchExists then do
     let content ← IO.FS.readFile ⟨modelPatchPath⟩
-    pure (content.trim.length > 0)
+    pure (decide (content.trim.length > 0))
   else pure false
   IO.println s!"[SelfImprove] Patch: exists={modelPatchExists}, non-empty={modelPatchNotEmpty}"
 

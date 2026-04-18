@@ -69,7 +69,7 @@ def randomFloat : IO Float := do
 /-- Weighted random selection: pick one item from a weighted list.
 Uses cumulative distribution sampling (roulette wheel).
 Ported from `random.choices` in Python. -/
-def weightedRandomChoice (items : List (α × Float)) : IO α := do
+def weightedRandomChoice {α : Type} (items : List (α × Float)) : IO α := do
   let totalWeight := items.foldl (fun acc (_, w) => acc + w) 0.0
   if totalWeight ≤ 0.0 then
     -- Fallback: return the first item
@@ -89,7 +89,7 @@ def weightedRandomChoice (items : List (α × Float)) : IO α := do
   | none => throw <| IO.userError "weightedRandomChoice: empty list"
 
 /-- Select `k` items with replacement from a weighted list. -/
-def weightedRandomChoices (items : List (α × Float)) (k : Nat) : IO (List α) := do
+def weightedRandomChoices {α : Type} (items : List (α × Float)) (k : Nat) : IO (List α) := do
   let mut results : List α := []
   for _ in List.range k do
     let item ← weightedRandomChoice items
@@ -98,10 +98,9 @@ def weightedRandomChoices (items : List (α × Float)) (k : Nat) : IO (List α) 
 
 /-! ## Selection Methods -/
 
-/-- Selection methods for choosing parents.
+/-- Sigmoid function for score scaling (matching Python's implementation).
+Used in selection methods for choosing parents.
 Ported from `choose_selfimproves` in `DGM_outer.py`. -/
-
-/-- Sigmoid function for score scaling (matching Python's implementation). -/
 def sigmoid (x : Float) : Float :=
   1.0 / (1.0 + Float.exp (-(10.0 * (x - 0.5))))
 
@@ -182,13 +181,13 @@ def updateArchive (archive : ConcreteArchive)
 Ported from `get_model_patch_paths` in `utils/evo_utils.py`.
 
 This recursively follows parent commits to build the full patch chain. -/
-def getModelPatchPaths (rootDir dgmDir parentCommit : String) : IO (List String) := do
+partial def getModelPatchPaths (rootDir dgmDir parentCommit : String) : IO (List String) := do
   -- Recursively trace parent chain
   if parentCommit == "initial" then
     return []
   let metadataPath := s!"{dgmDir}/{parentCommit}/metadata.json"
-  let exists ← System.FilePath.pathExists ⟨metadataPath⟩
-  if !exists then
+  let metaExists ← System.FilePath.pathExists ⟨metadataPath⟩
+  if !metaExists then
     return []
   let content ← IO.FS.readFile ⟨metadataPath⟩
   -- Extract parent_commit from JSON
@@ -209,8 +208,8 @@ def getModelPatchPaths (rootDir dgmDir parentCommit : String) : IO (List String)
 /-- Load archive from a JSONL metadata file.
 Ported from `load_dgm_metadata` in `utils/evo_utils.py`. -/
 def loadArchive (metadataPath : String) : IO ConcreteArchive := do
-  let exists ← System.FilePath.pathExists ⟨metadataPath⟩
-  if !exists then
+  let fileExists ← System.FilePath.pathExists ⟨metadataPath⟩
+  if !fileExists then
     return ConcreteArchive.empty
   let content ← IO.FS.readFile ⟨metadataPath⟩
   let lines := content.splitOn "\n" |>.filter (·.length > 0)

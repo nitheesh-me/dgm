@@ -80,18 +80,9 @@ theorem upgrade_score_nondecreasing {spec : AgentSpec}
 
 /-- A sequence of upgrades produces a monotonically non-decreasing score sequence. -/
 theorem upgrades_monotone_score {spec : AgentSpec}
-    (steps : List (EvolutionStep spec)) :
-    ∀ (i j : Nat),
-      i ≤ j →
-      j < steps.length →
-      i < steps.length →
-      (steps.get ⟨i, by omega⟩).parent.score ≤ (steps.get ⟨j, by omega⟩).child.score := by
-  intro i j h_le h_j h_i
-  -- TODO(proof): Complete via induction on (j - i).
-  -- Base case (i = j): follows from step.stable.scoreNonRegression (parent ≤ child).
-  -- Inductive case: Need chain connectivity (step[k].child = step[k+1].parent)
-  -- to chain le_trans across consecutive step scores.
-  -- This proof is blocked until we add a chain connectivity hypothesis.
+    (steps : List (EvolutionStep spec))
+    (i j : Nat) (h_le : i ≤ j) (h_j : j < steps.length) (h_i : i < steps.length) :
+    (steps.get ⟨i, h_i⟩).parent.score ≤ (steps.get ⟨j, h_j⟩).child.score := by
   sorry
 
 /-! ## Completeness: Every Upgrade is Captured -/

@@ -112,6 +112,17 @@ structure GenerationResult where
   compiledResults : List SelfImproveResult
   deriving Repr, Inhabited
 
+private partial def batchListGo {α : Type} : List α → Nat → List (List α) → List (List α)
+  | [], _, acc => acc.reverse
+  | remaining, sz, acc =>
+    let batch := remaining.take sz
+    let rest := remaining.drop sz
+    batchListGo rest sz (batch :: acc)
+
+private def batchList {α : Type} (xs : List α) (size : Nat) : List (List α) :=
+  if size == 0 then [xs]
+  else batchListGo xs size []
+
 /-- Run self-improvement workers in parallel using Lean 4 Tasks.
 Spawns up to `numWorkers` tasks concurrently.
 Ported from `ThreadPoolExecutor` usage in `DGM_outer.py`. -/
@@ -131,17 +142,6 @@ def runSelfImprovementsParallel (configs : List SelfImproveConfig)
       | .error e =>
         IO.eprintln s!"[Worker] Self-improvement failed: {e}"
   return results
-where
-  batchList {α : Type} (xs : List α) (size : Nat) : List (List α) :=
-    if size == 0 then [xs]
-    else go xs size []
-  where
-    go : List α → Nat → List (List α) → List (List α)
-      | [], _, acc => acc.reverse
-      | remaining, sz, acc =>
-        let batch := remaining.take sz
-        let rest := remaining.drop sz
-        go rest sz (batch :: acc)
 
 /-- Run a single generation of the DGM evolution loop.
 
@@ -240,8 +240,8 @@ where
   loadTestTaskList (config : DGMConfig) : IO (List String) := do
     let subsetDir := if config.polyglot then "./polyglot/subsets" else "./swe_bench/subsets"
     let smallPath := s!"{subsetDir}/small.json"
-    let exists ← System.FilePath.pathExists ⟨smallPath⟩
-    if exists then
+    let pathExists ← System.FilePath.pathExists ⟨smallPath⟩
+    if pathExists then
       let content ← IO.FS.readFile ⟨smallPath⟩
       -- Simple JSON array parsing: extract strings from ["id1", "id2", ...]
       let inner := (content.trim

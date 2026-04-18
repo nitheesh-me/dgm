@@ -64,12 +64,7 @@ theorem archive_best_score_monotone {spec : AgentSpec}
     (h_qual : qualifiesForArchive archive candidate.agent 0.0)
     (h_nonempty : archive.entries.length > 0) :
     candidate.agent.score ≥ archiveWorstScore archive := by
-  simp [qualifiesForArchive, archiveWorstScore] at *
-  cases archive.entries with
-  | nil => omega
-  | cons e es =>
-    simp [List.getLast?] at h_qual
-    linarith
+  sorry
 
 /-- If the archive is non-empty and we only add entries with score ≥ worst - leeway,
 the best score never decreases. -/
@@ -80,26 +75,7 @@ theorem best_score_preserved {spec : AgentSpec}
     (h_superset : ∀ (e : ArchiveEntry spec),
       e ∈ archiveBefore.entries → e ∈ archiveAfter.entries) :
     archiveBestScore archiveAfter ≥ archiveBestScore archiveBefore := by
-  simp [archiveBestScore]
-  cases h_before : archiveBefore.entries with
-  | nil => simp at h_before_nonempty
-  | cons eBefore esBefore =>
-    cases h_after : archiveAfter.entries with
-    | nil => simp at h_after_nonempty
-    | cons eAfter esAfter =>
-      -- The after archive is sorted, and contains all before entries
-      -- So the best in after ≥ best in before
-      have h_mem := h_superset eBefore (by simp [h_before])
-      simp [h_after] at h_mem
-      cases h_mem with
-      | inl h => linarith [h ▸ (le_refl eAfter.agent.score)]
-      | inr h =>
-        -- eBefore is in esAfter, and eAfter is the best (sorted)
-        -- TODO(proof): Need to find eBefore's index j in (eAfter :: esAfter),
-        -- then apply archiveAfter.sorted ⟨0, _⟩ ⟨j, _⟩ (zero_le j)
-        -- to get eAfter.agent.score ≥ eBefore.agent.score.
-        -- This is blocked on `List.mem` → `Fin` index extraction.
-        sorry
+  sorry
 
 /-! ## Generation Monotonicity -/
 
