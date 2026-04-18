@@ -81,8 +81,12 @@ theorem stability_preserved_across_steps {spec : AgentSpec}
     | cons step2 rest2 =>
       simp only [List.length] at h_nonempty h_chain
       have h1 := step.stable.scoreNonRegression
-      -- The rest of the chain also satisfies monotonicity
-      sorry -- Full inductive proof requires detailed index arithmetic
+      -- TODO(proof): Complete the inductive step.
+      -- Need: (1) h_chain gives us step.child = step2.parent (chain connectivity)
+      -- (2) By induction hypothesis on (step2 :: rest2), the rest of the chain is monotone
+      -- (3) Combine h1 (step score ≥) with the inductive result via le_trans
+      -- Requires careful index arithmetic on List.get with Fin bounds.
+      sorry
 
 /-! ## Archive Stability Invariant -/
 

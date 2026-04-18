@@ -88,7 +88,12 @@ theorem upgrades_monotone_score {spec : AgentSpec}
       i < steps.length →
       (steps.get ⟨i, by omega⟩).parent.score ≤ (steps.get ⟨j, by omega⟩).child.score := by
   intro i j h_le h_j h_i
-  sorry -- Requires chain connectivity proof
+  -- TODO(proof): Complete via induction on (j - i).
+  -- Base case (i = j): follows from step.stable.scoreNonRegression (parent ≤ child).
+  -- Inductive case: Need chain connectivity (step[k].child = step[k+1].parent)
+  -- to chain le_trans across consecutive step scores.
+  -- This proof is blocked until we add a chain connectivity hypothesis.
+  sorry
 
 /-! ## Completeness: Every Upgrade is Captured -/
 

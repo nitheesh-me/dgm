@@ -92,8 +92,11 @@ theorem best_score_preserved {spec : AgentSpec}
       | inl h => linarith [h ▸ (le_refl eAfter.agent.score)]
       | inr h =>
         -- eBefore is in esAfter, and eAfter is the best (sorted)
-        have := archiveAfter.sorted ⟨0, by simp [h_after]⟩
-        sorry -- Requires showing eAfter.score ≥ eBefore.score via sorted property
+        -- TODO(proof): Need to find eBefore's index j in (eAfter :: esAfter),
+        -- then apply archiveAfter.sorted ⟨0, _⟩ ⟨j, _⟩ (zero_le j)
+        -- to get eAfter.agent.score ≥ eBefore.agent.score.
+        -- This is blocked on `List.mem` → `Fin` index extraction.
+        sorry
 
 /-! ## Generation Monotonicity -/
 
@@ -124,8 +127,12 @@ theorem filter_compiled_preserves_best {spec : AgentSpec}
   obtain ⟨e, h_mem, h_comp⟩ := h_exists_compiled
   refine ⟨e, List.mem_filter.mpr ⟨h_mem, h_comp⟩, ?_⟩
   intro e' _
-  exact Float.le_total e'.agent.score e.agent.score |>.imp_right id |>.imp_left id
-    |>.symm.imp_left id |>.symm.imp_right id
-  sorry -- Float totality requires specific handling
+  -- TODO(proof): Float ordering in Lean 4. Float doesn't have a total order instance
+  -- by default (due to NaN). Need either:
+  -- (1) Restrict to non-NaN scores (refinement type {f : Float // ¬f.isNaN}), or
+  -- (2) Use a custom decidable comparison that treats NaN as 0.0, or
+  -- (3) Use `Float.decLe` with explicit NaN handling.
+  -- For now, this is a proof obligation for the final implementation.
+  sorry
 
 end DGM.Proofs
