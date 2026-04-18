@@ -1,3 +1,7 @@
+import DGM.Types.Basic
+import DGM.Tools.Tool
+import DGM.Agent.MockLLM
+
 /-!
 # DGM.Agent.LLM — LLM Client Abstraction
 
@@ -5,11 +9,6 @@ Low-level LLM API handling with retry logic and multi-provider support.
 Calls real APIs via `curl` shell-out (IO.Process).
 Ported from: `llm.py` and `llm_withtools.py`
 -/
-
-import DGM.Types.Basic
-import DGM.Tools.Tool
-import DGM.Agent.MockLLM
-
 namespace DGM.Agent
 
 open DGM.Types
@@ -187,7 +186,9 @@ def buildAnthropicPayload (client : LLMClient) (messages : List Message)
 /-- Build the full API request body for OpenAI. -/
 def buildOpenAIPayload (client : LLMClient) (messages : List Message)
     (systemMessage : String) (tools : List ToolInfo) : String :=
-  let allMessages := [{ role := Role.system, blocks := [{ blockType := .text, text := some systemMessage }] : ContentBlock }] ++ messages
+  let sysBlock : ContentBlock := { blockType := .text, text := some systemMessage }
+  let sysMsg : Message := { role := Role.system, blocks := [sysBlock] }
+  let allMessages := [sysMsg] ++ messages
   let model := client.config.modelName
   let isO1O3 := model.startsWith "o1-" || model.startsWith "o3-"
   let messagesJson := buildMessagesJson allMessages
@@ -218,13 +219,13 @@ where
     -- Find text blocks in content array
     let parts := json.splitOn "\"text\": \""
     if parts.length > 1 then
-      match parts.get? 1 with
-      | some rest =>
+      match parts with
+      | _ :: rest :: _ =>
         -- Find the closing quote (handling escaped quotes)
         let chars := rest.toList
         let result := extractUntilUnescapedQuote chars ""
         result
-      | none => ""
+      | _ => ""
     else ""
   extractUntilUnescapedQuote : List Char → String → String
     | [], acc => acc
@@ -251,17 +252,16 @@ where
         | _ => none
   extractJsonObject (s : String) : String :=
     let chars := s.toList
-    go chars 0 ""
-  where
-    go : List Char → Nat → String → String
-      | [], _, acc => acc
-      | '{' :: rest, depth, acc => go rest (depth + 1) (acc.push '{')
-      | '}' :: rest, depth, acc =>
-        if depth == 1 then acc.push '}'
-        else go rest (depth - 1) (acc.push '}')
-      | c :: rest, depth, acc =>
-        if depth == 0 && c != '{' then go rest depth acc
-        else go rest depth (acc.push c)
+    extractJsonObjectGo chars 0 ""
+  extractJsonObjectGo : List Char → Nat → String → String
+    | [], _, acc => acc
+    | '{' :: rest, depth, acc => extractJsonObjectGo rest (depth + 1) (acc.push '{')
+    | '}' :: rest, depth, acc =>
+      if depth == 1 then acc.push '}'
+      else extractJsonObjectGo rest (depth - 1) (acc.push '}')
+    | c :: rest, depth, acc =>
+      if depth == 0 && c != '{' then extractJsonObjectGo rest depth acc
+      else extractJsonObjectGo rest depth (acc.push c)
 
 /-- Parse the text content from an OpenAI response JSON string. -/
 def parseOpenAIResponse (responseBody : String) : IO LLMRawResponse := do
@@ -292,11 +292,23 @@ where
     | [_, rest] =>
       -- Extract function call info
       let idVal := match rest.splitOn "\"id\": \"" with
-        | [_, r] => match r.splitOn "\"" with | v :: _ => v | _ => "" | _ => ""
+        | [_, r] =>
+          match r.splitOn "\"" with
+          | v :: _ => v
+          | _ => ""
+        | _ => ""
       let nameVal := match rest.splitOn "\"name\": \"" with
-        | [_, r] => match r.splitOn "\"" with | v :: _ => v | _ => "" | _ => ""
+        | [_, r] =>
+          match r.splitOn "\"" with
+          | v :: _ => v
+          | _ => ""
+        | _ => ""
       let argsVal := match rest.splitOn "\"arguments\": \"" with
-        | [_, r] => match r.splitOn "\"" with | v :: _ => v.replace "\\\"" "\"" | _ => "{}" | _ => "{}"
+        | [_, r] =>
+          match r.splitOn "\"" with
+          | v :: _ => v.replace "\\\"" "\""
+          | _ => "{}"
+        | _ => "{}"
       if nameVal.isEmpty then []
       else [{ id := idVal, name := nameVal, input := argsVal }]
     | _ => []

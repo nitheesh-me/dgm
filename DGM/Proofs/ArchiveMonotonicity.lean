@@ -1,3 +1,5 @@
+import DGM.Types.Evolution
+
 /-!
 # DGM.Proofs.ArchiveMonotonicity — Proof that Archive Quality Never Decreases
 
@@ -8,9 +10,6 @@ non-decreasing across generations.
 This captures the key property of the DGM evolutionary loop: the archive
 only admits agents that are at least as good as existing ones (with noise leeway).
 -/
-
-import DGM.Types.Evolution
-
 namespace DGM.Proofs
 
 open DGM.Types

@@ -1,3 +1,6 @@
+import DGM.Types.Basic
+import DGM.Types.AgentSpec
+
 /-!
 # DGM.Types.Subtyping — Subtype Relations and Bound Tightening
 
@@ -12,10 +15,6 @@ An agent `child` is a subtype of `parent` if:
 - `child.OutputDomain ⊆ parent.OutputDomain` (covariant outputs)
 - All postconditions of `parent` are satisfied by `child`
 -/
-
-import DGM.Types.Basic
-import DGM.Types.AgentSpec
-
 namespace DGM.Types
 
 /-! ## Behavioral Subtyping -/
@@ -99,7 +98,7 @@ inductive SubtypeChain : AgentSpec → AgentSpec → Type where
              AgentSubtype a b → SubtypeChain b c → SubtypeChain a c
 
 /-- Extract the composite subtype relation from a chain. -/
-def SubtypeChain.toSubtype : SubtypeChain a b → AgentSubtype a b
+def SubtypeChain.toSubtype {a b : AgentSpec} : SubtypeChain a b → AgentSubtype a b
   | .refl spec   => AgentSubtype.refl spec
   | .step hab tl => AgentSubtype.trans hab tl.toSubtype
 

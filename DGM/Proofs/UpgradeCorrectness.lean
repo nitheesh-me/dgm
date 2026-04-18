@@ -1,3 +1,5 @@
+import DGM.Types.Evolution
+
 /-!
 # DGM.Proofs.UpgradeCorrectness — Proof that Behavior Changes Only in the Intended Domain
 
@@ -8,9 +10,6 @@ behavior changes are confined to the `UpgradeDelta.changeDomain`.
 This is the key safety property: an upgrade cannot accidentally
 modify behavior outside its intended scope.
 -/
-
-import DGM.Types.Evolution
-
 namespace DGM.Proofs
 
 open DGM.Types

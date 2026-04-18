@@ -1,3 +1,5 @@
+import DGM.Types.Basic
+
 /-!
 # DGM.Utils.Git — Git Operations
 
@@ -85,16 +87,16 @@ def applyPatch (repoPath patch : String) : IO Unit := do
 Ported from `filter_patch_by_files`. -/
 def filterPatchByFiles (patch : String) (targetFiles : List String) : String :=
   let sections := patch.splitOn "diff --git"
-  let filtered := sections.filter fun section =>
-    targetFiles.any fun file => section.containsSubstr file
+  let filtered := sections.filter fun sect =>
+    targetFiles.any fun file => sect.containsSubstr file
   String.intercalate "diff --git" filtered
 
 /-- Remove patch sections matching a keyword.
 Ported from `remove_patch_by_files`. -/
 def removePatchByKeyword (patch : String) (keyword : String := "polyglot") : String :=
   let sections := patch.splitOn "diff --git"
-  let filtered := sections.filter fun section =>
-    !section.containsSubstr keyword
+  let filtered := sections.filter fun sect =>
+    !sect.containsSubstr keyword
   String.intercalate "diff --git" filtered
 
 end DGM.Utils.Git

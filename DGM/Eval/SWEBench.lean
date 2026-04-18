@@ -1,14 +1,13 @@
+import DGM.Types.Basic
+import DGM.Utils.Docker
+import DGM.Utils.EvalUtils
+
 /-!
 # DGM.Eval.SWEBench — SWE-bench Evaluation Harness
 
 Evaluation framework for the SWE-bench benchmark (GitHub issue fixing).
 Ported from: `swe_bench/harness.py` and `swe_bench/report.py`
 -/
-
-import DGM.Types.Basic
-import DGM.Utils.Docker
-import DGM.Utils.EvalUtils
-
 namespace DGM.Eval.SWEBench
 
 open DGM.Types

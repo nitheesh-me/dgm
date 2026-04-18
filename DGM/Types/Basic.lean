@@ -181,3 +181,10 @@ structure LLMModel where
   deriving Repr, Inhabited
 
 end DGM.Types
+
+/-! ## String Utility Extensions -/
+
+/-- Check if a string contains a given substring.
+Uses `splitOn` internally: if splitting produces more than one part, the substring is present. -/
+def String.containsSubstr (s sub : String) : Bool :=
+  (s.splitOn sub).length > 1

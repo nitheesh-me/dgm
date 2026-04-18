@@ -1,3 +1,5 @@
+import DGM.Types.Basic
+
 /-!
 # DGM.Tools.Tool — Tool Typeclass and Registry
 

@@ -1,12 +1,11 @@
+import DGM.Types.Basic
+import DGM.Utils.LogParsers
+
 /-!
 # DGM.Utils.EvalUtils — Evaluation and Scoring Utilities
 
 Ported from: `utils/eval_utils.py`
 -/
-
-import DGM.Types.Basic
-import DGM.Utils.LogParsers
-
 namespace DGM.Utils.EvalUtils
 
 open DGM.Types

@@ -1,3 +1,5 @@
+import DGM.Types.Basic
+
 /-!
 # DGM.Types.AgentSpec — Agent Specification & Implementation with Refinement Types
 
@@ -11,9 +13,6 @@ An `AgentImpl` carries a proof that it satisfies its specification.
 - **StableSubtype**: The invariant behavioral core across upgrades
 - **UpgradeDelta**: The intended behavioral change in an upgrade
 -/
-
-import DGM.Types.Basic
-
 namespace DGM.Types
 
 /-! ## Domain & Behavior Modeling -/

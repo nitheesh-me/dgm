@@ -32,6 +32,14 @@ structure Container where
 
 /-! ## Container Operations -/
 
+/-- Remove an existing container if present. -/
+def removeExisting (containerName : String) : IO Unit := do
+  let _ ← IO.Process.output {
+    cmd := "docker"
+    args := #["rm", "-f", containerName]
+  }
+  return ()
+
 /-- Build a Docker container for DGM evaluation.
 Ported from `build_dgm_container` in `utils/docker_utils.py`. -/
 def buildContainer (imageName containerName : String)
@@ -64,14 +72,6 @@ def buildContainer (imageName containerName : String)
     throw <| IO.userError s!"Docker start failed: {startResult.stderr}"
 
   return { id := containerName, running := true }
-
-/-- Remove an existing container if present. -/
-def removeExisting (containerName : String) : IO Unit := do
-  let _ ← IO.Process.output {
-    cmd := "docker"
-    args := #["rm", "-f", containerName]
-  }
-  return ()
 
 /-- Copy a file to a running container.
 Ported from `copy_to_container` in `utils/docker_utils.py`. -/

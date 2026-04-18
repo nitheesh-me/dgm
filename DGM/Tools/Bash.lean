@@ -1,12 +1,11 @@
+import DGM.Tools.Tool
+
 /-!
 # DGM.Tools.Bash — Bash Command Execution Tool
 
 IO monad-based bash execution with timeout handling.
 Ported from: `tools/bash.py`
 -/
-
-import DGM.Tools.Tool
-
 namespace DGM.Tools
 
 /-! ## Bash Session -/
@@ -65,7 +64,7 @@ def executeBash (command : String) (config : BashConfig := {}) : IO BashResult :
 Truncates very long output to avoid context overflow. -/
 def formatBashOutput (result : BashResult) (maxChars : Nat := 100000) : String :=
   let output := if result.stdout.length > maxChars then
-    result.stdout.take maxChars ++ "\n... [output truncated]"
+    (result.stdout.take maxChars).toString ++ "\n... [output truncated]"
   else
     result.stdout
   let errOutput := if result.stderr.isEmpty then "" else

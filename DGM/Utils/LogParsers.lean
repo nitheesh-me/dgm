@@ -1,12 +1,11 @@
+import DGM.Types.Basic
+
 /-!
 # DGM.Utils.LogParsers — Test Log Parsing
 
 Parsers for extracting test results from different test framework logs.
 Ported from: `utils/swe_log_parsers.py`
 -/
-
-import DGM.Types.Basic
-
 namespace DGM.Utils.LogParsers
 
 open DGM.Types
@@ -83,11 +82,11 @@ def parseLogGoTest (log : String) : List (String × TestStatus) :=
   lines.filterMap fun line =>
     let trimmed := line.trim
     if trimmed.startsWith "--- PASS:" then
-      some (trimmed.drop 10 |>.trim, TestStatus.passed)
+      some ((trimmed.drop 10).toString.trim, TestStatus.passed)
     else if trimmed.startsWith "--- FAIL:" then
-      some (trimmed.drop 10 |>.trim, TestStatus.failed)
+      some ((trimmed.drop 10).toString.trim, TestStatus.failed)
     else if trimmed.startsWith "--- SKIP:" then
-      some (trimmed.drop 10 |>.trim, TestStatus.skipped)
+      some ((trimmed.drop 10).toString.trim, TestStatus.skipped)
     else
       none
 

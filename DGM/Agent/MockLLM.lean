@@ -1,3 +1,5 @@
+import DGM.Types.Basic
+
 /-!
 # DGM.Agent.MockLLM — Mock LLM Responses for Testing Without API Keys
 
@@ -8,9 +10,6 @@ a hash of the input prompt to provide consistent but diverse outputs.
 This allows the full DGM pipeline to be exercised and validated without
 incurring API costs or requiring credentials.
 -/
-
-import DGM.Types.Basic
-
 namespace DGM.Agent.MockLLM
 
 open DGM.Types
@@ -129,7 +128,9 @@ def mockLLMCall (messages : List Message) (systemMessage : String)
         else
           "{\"command\": \"view\", \"path\": \"/repo/README.md\"}"
         -- For tool use, we return content with tool info embedded
-        (s!"Let me explore the codebase first.\n\n<tool_use>\n{{\"tool_name\": \"{toolName}\", \"tool_input\": {toolInput}}}\n</tool_use>", "tool_use")
+        let resp := "Let me explore the codebase first.\n\n<tool_use>\n" ++
+          "{\"tool_name\": \"" ++ toolName ++ "\", \"tool_input\": " ++ toolInput ++ "}\n</tool_use>"
+        (resp, "tool_use")
       else
         (selectResponse codingAgentResponses promptText, "end_turn")
     else

@@ -1,3 +1,6 @@
+import DGM.Agent.CodingAgent
+import DGM.Types.Basic
+
 /-!
 # DGM.Agent.PolyglotAgent — Multi-Language Coding Agent
 
@@ -5,10 +8,6 @@ Extends the base coding agent with language-specific test commands
 for the Polyglot benchmark (C++, Go, Java, JavaScript, Python, Rust).
 Ported from: `coding_agent_polyglot.py`
 -/
-
-import DGM.Agent.CodingAgent
-import DGM.Types.Basic
-
 namespace DGM.Agent
 
 open DGM.Types

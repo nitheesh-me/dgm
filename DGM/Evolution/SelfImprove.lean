@@ -1,11 +1,3 @@
-/-!
-# DGM.Evolution.SelfImprove — Self-Improvement Step with Verification
-
-The core mutation pipeline: diagnose problems, generate improvements,
-evaluate on benchmarks, and produce verified evolution steps.
-Ported from: `self_improve_step.py`
--/
-
 import DGM.Types.Evolution
 import DGM.Agent.CodingAgent
 import DGM.Agent.LLM
@@ -16,6 +8,13 @@ import DGM.Utils.Common
 import DGM.Prompts.SelfImprovement
 import DGM.Prompts.DiagnoseImprovement
 
+/-!
+# DGM.Evolution.SelfImprove — Self-Improvement Step with Verification
+
+The core mutation pipeline: diagnose problems, generate improvements,
+evaluate on benchmarks, and produce verified evolution steps.
+Ported from: `self_improve_step.py`
+-/
 namespace DGM.Evolution
 
 open DGM.Types
@@ -164,7 +163,7 @@ where
     match json.splitOn s!"\"{field}\": \"" with
     | [_, rest] => match rest.splitOn "\"" with | val :: _ => val | _ => ""
     | _ => match json.splitOn s!"\"{field}\":" with
-      | [_, rest] => rest.trim.takeWhile (· != ',') |>.takeWhile (· != '}') |>.trim
+      | [_, rest] => (rest.trim.takeWhile (· != ',') |>.takeWhile (· != '}') |>.trim).toString
       | _ => ""
 
 /-! ## Self-Improvement Result -/
@@ -260,7 +259,7 @@ def selfImprove (config : SelfImproveConfig) : IO SelfImproveResult := do
     s!"--entry {config.entry} " ++
     s!"--output {runDir}"
   let agentOutput ← DGM.Utils.Docker.execInContainer container agentCmd
-  IO.println s!"[SelfImprove] Agent output: {agentOutput.take 200}"
+  IO.println s!"[SelfImprove] Agent output: {(agentOutput.take 200).toString}"
 
   -- Step 5: Extract the model patch
   let modelPatchPath := s!"{runDir}/model_patch.diff"
@@ -324,7 +323,7 @@ where
       args := #["-c", harnessCmd]
     }
     if result.exitCode != 0 then
-      IO.eprintln s!"[Eval] Harness failed: {result.stderr.take 500}"
+      IO.eprintln s!"[Eval] Harness failed: {(result.stderr.take 500).toString}"
     -- Parse evaluation results
     let evalResultPath := s!"{runDir}/eval/results.json"
     let evalExists ← System.FilePath.pathExists ⟨evalResultPath⟩
@@ -346,7 +345,7 @@ where
     -- Parse accuracy_score which is already a float in 0.0-1.0 range
     let score := match json.splitOn "\"accuracy_score\":" with
       | [_, rest] =>
-        let numStr := rest.trim.takeWhile (fun c => c.isDigit || c == '.' || c == '-')
+        let numStr := (rest.trim.takeWhile (fun c => c.isDigit || c == '.' || c == '-')).toString
         -- Parse "N.M" format
         match numStr.splitOn "." with
         | [intPart, fracPart] =>

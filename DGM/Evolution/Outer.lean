@@ -1,3 +1,8 @@
+import DGM.Types.Evolution
+import DGM.Evolution.Archive
+import DGM.Evolution.SelfImprove
+import DGM.Utils.Common
+
 /-!
 # DGM.Evolution.Outer — Main Evolutionary Loop
 
@@ -6,12 +11,6 @@ Iterates through generations, selecting parents, running self-improvement,
 filtering results, and updating the archive.
 Ported from: `DGM_outer.py`
 -/
-
-import DGM.Types.Evolution
-import DGM.Evolution.Archive
-import DGM.Evolution.SelfImprove
-import DGM.Utils.Common
-
 namespace DGM.Evolution.Outer
 
 open DGM.Types
@@ -245,11 +244,11 @@ where
     if exists then
       let content ← IO.FS.readFile ⟨smallPath⟩
       -- Simple JSON array parsing: extract strings from ["id1", "id2", ...]
-      let inner := content.trim
+      let inner := (content.trim
         |>.dropWhile (· == '[')
-        |>.takeWhile (· != ']')
+        |>.takeWhile (· != ']')).toString
       return inner.splitOn ","
-        |>.map (·.trim.replace "\"" "")
+        |>.map (fun s => (s.trim.replace "\"" ""))
         |>.filter (·.length > 0)
     else
       IO.eprintln s!"[DGM] Warning: Test task list not found at {smallPath}"

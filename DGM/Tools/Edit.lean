@@ -1,12 +1,11 @@
+import DGM.Tools.Tool
+
 /-!
 # DGM.Tools.Edit — File Editor Tool
 
 File operations (view, create, edit) with path validation.
 Ported from: `tools/edit.py`
 -/
-
-import DGM.Tools.Tool
-
 namespace DGM.Tools
 
 /-! ## Edit Commands -/
@@ -70,16 +69,16 @@ def viewPath (path : String) : IO String := do
 
 /-- Create a new file with given content. -/
 def createFile (path : String) (content : String) : IO String := do
-  let exists ← System.FilePath.pathExists ⟨path⟩
-  if exists then
+  let pathExists ← System.FilePath.pathExists ⟨path⟩
+  if pathExists then
     throw <| IO.userError s!"File already exists at {path}. Use 'edit' to modify it."
   IO.FS.writeFile ⟨path⟩ content
   return s!"File created successfully at {path}"
 
 /-- Edit an existing file by replacing old content with new content. -/
 def editFile (path : String) (newContent : String) : IO String := do
-  let exists ← System.FilePath.pathExists ⟨path⟩
-  if !exists then
+  let pathExists ← System.FilePath.pathExists ⟨path⟩
+  if !pathExists then
     throw <| IO.userError s!"File does not exist at {path}. Use 'create' to create it."
   IO.FS.writeFile ⟨path⟩ newContent
   return s!"File edited successfully at {path}"

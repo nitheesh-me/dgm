@@ -1,3 +1,5 @@
+import DGM.Types.Evolution
+
 /-!
 # DGM.Proofs.Stability — Proof that Stable Subtypes are Preserved Across Evolution
 
@@ -8,9 +10,6 @@ step preserves the stable subtype, the composite of all steps also preserves sta
 This is the fundamental guarantee of verified self-evolution: no matter how many
 mutations occur, the stable behavioral core is never broken.
 -/
-
-import DGM.Types.Evolution
-
 namespace DGM.Proofs
 
 open DGM.Types

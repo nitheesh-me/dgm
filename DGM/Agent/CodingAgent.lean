@@ -1,3 +1,10 @@
+import DGM.Agent.LLM
+import DGM.Tools.Tool
+import DGM.Tools.Bash
+import DGM.Tools.Edit
+import DGM.Types.Basic
+import DGM.Utils.Git
+
 /-!
 # DGM.Agent.CodingAgent — SWE-bench Coding Agent
 
@@ -5,12 +12,6 @@ The main agent for solving GitHub issues. Wraps an LLM with tool access
 and git operations.
 Ported from: `coding_agent.py`
 -/
-
-import DGM.Agent.LLM
-import DGM.Tools.Tool
-import DGM.Types.Basic
-import DGM.Utils.Git
-
 namespace DGM.Agent
 
 open DGM.Types

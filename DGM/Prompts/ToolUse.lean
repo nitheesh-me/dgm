@@ -1,12 +1,11 @@
+import DGM.Tools.Tool
+
 /-!
 # DGM.Prompts.ToolUse — Tool Usage Prompt Format
 
 Provides tool usage format instructions for LLMs without native tool calling.
 Ported from: `prompts/tooluse_prompt.py`
 -/
-
-import DGM.Tools.Tool
-
 namespace DGM.Prompts.ToolUse
 
 open DGM.Tools

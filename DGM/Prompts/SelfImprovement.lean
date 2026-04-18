@@ -1,12 +1,11 @@
+import DGM.Types.Basic
+
 /-!
 # DGM.Prompts.SelfImprovement — Self-Improvement Prompt Templates
 
 Prompt templates and construction for the diagnosis and improvement pipeline.
 Ported from: `prompts/self_improvement_prompt.py`
 -/
-
-import DGM.Types.Basic
-
 namespace DGM.Prompts.SelfImprovement
 
 /-! ## Coding Agent Summary -/
@@ -76,17 +75,6 @@ def buildDiagnosePrompt (entry : String) (evalLogs : List String)
   "Analyze the evaluation logs above and suggest a specific improvement to the coding agent.\n" ++
   "Focus on patterns of failure and provide an actionable implementation suggestion."
 
-/-- Construct the diagnosis prompt given file paths (for SelfImprove pipeline).
-Loads logs and code from disk. -/
-def getDiagnosePrompt (entry commitId rootDir outDir : String)
-    (patchFiles : List String) (polyglot : Bool) : IO String := do
-  let evalLogs ← findEvalLogs entry outDir commitId
-  let currentCode ← getCurrentCode commitId rootDir outDir
-  let patches ← patchFiles.mapM fun f => do
-    let exists ← System.FilePath.pathExists ⟨f⟩
-    if exists then IO.FS.readFile ⟨f⟩ else pure ""
-  return buildDiagnosePrompt entry evalLogs currentCode patches
-
 /-- Construct problem description from diagnosis response (pure version).
 Ported from `get_problem_description_prompt`. -/
 def buildProblemDescriptionPrompt (suggestion : String) (description : String)
@@ -112,13 +100,12 @@ def getProblemDescriptionPrompt (jsonResponse : String) (isPolyglot : Bool) : St
 
 /-- Read and filter a markdown log file.
 Ported from `read_mdlog_file`. -/
-def readMdLogFile (filepath : String) (filter : Bool := true) : IO String := do
+def readMdLogFile (filepath : String) (doFilter : Bool := true) : IO String := do
   let content ← IO.FS.readFile ⟨filepath⟩
-  if filter then
-    -- Filter out very long tool outputs to stay within context
+  if doFilter then
     let lines := content.splitOn "\n"
     let filtered := lines.map fun line =>
-      if line.length > 5000 then line.take 5000 ++ "... [truncated]"
+      if line.length > 5000 then (line.take 5000).toString ++ "... [truncated]"
       else line
     return String.intercalate "\n" filtered
   else
@@ -127,19 +114,19 @@ def readMdLogFile (filepath : String) (filter : Bool := true) : IO String := do
 /-- Find evaluation log files for a given entry and commit.
 Ported from `find_selfimprove_eval_logs`. -/
 def findEvalLogs (entry outDir : String) (commitId : String := "initial")
-    (filter : Bool := true) : IO (List String) := do
+    (doFilter : Bool := true) : IO (List String) := do
   let logDir := s!"{outDir}/{commitId}/logs"
-  let exists ← System.FilePath.pathExists ⟨logDir⟩
-  if !exists then return []
+  let dirExists ← System.FilePath.pathExists ⟨logDir⟩
+  if !dirExists then return []
 
-  let entries ← System.FilePath.readDir ⟨logDir⟩
-  let logFiles := entries.toList
+  let dirEntries ← System.FilePath.readDir ⟨logDir⟩
+  let logFiles := dirEntries.toList
     |>.filter (·.fileName.endsWith ".md")
     |>.map (fun e => s!"{logDir}/{e.fileName}")
 
   let mut logs : List String := []
   for file in logFiles do
-    let content ← readMdLogFile file filter
+    let content ← readMdLogFile file doFilter
     logs := logs ++ [content]
   return logs
 
@@ -147,10 +134,21 @@ def findEvalLogs (entry outDir : String) (commitId : String := "initial")
 Ported from `get_current_code`. -/
 def getCurrentCode (commit rootDir outDir : String) : IO String := do
   let codePath := s!"{rootDir}/coding_agent.py"
-  let exists ← System.FilePath.pathExists ⟨codePath⟩
-  if exists then
+  let pathExists ← System.FilePath.pathExists ⟨codePath⟩
+  if pathExists then
     IO.FS.readFile ⟨codePath⟩
   else
     return "# coding_agent.py not found"
+
+/-- Construct the diagnosis prompt given file paths (for SelfImprove pipeline).
+Loads logs and code from disk. -/
+def getDiagnosePrompt (entry commitId rootDir outDir : String)
+    (patchFiles : List String) (_polyglot : Bool) : IO String := do
+  let evalLogs ← findEvalLogs entry outDir commitId
+  let currentCode ← getCurrentCode commitId rootDir outDir
+  let patches ← patchFiles.mapM fun f => do
+    let fExists ← System.FilePath.pathExists ⟨f⟩
+    if fExists then IO.FS.readFile ⟨f⟩ else pure ""
+  return buildDiagnosePrompt entry evalLogs currentCode patches
 
 end DGM.Prompts.SelfImprovement

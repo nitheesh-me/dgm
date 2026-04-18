@@ -1,3 +1,6 @@
+import DGM.Types.Subtyping
+import DGM.Types.Evolution
+
 /-!
 # DGM.Proofs.BoundTightening — Proof that Supertyping Preserves Behavioral Contracts
 
@@ -10,10 +13,6 @@
 When an agent upgrade *tightens* the output bounds (produces more precise results),
 it automatically satisfies the parent's contract (which had looser bounds).
 -/
-
-import DGM.Types.Subtyping
-import DGM.Types.Evolution
-
 namespace DGM.Proofs
 
 open DGM.Types

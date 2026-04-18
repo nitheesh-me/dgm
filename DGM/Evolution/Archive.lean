@@ -1,3 +1,7 @@
+import DGM.Types.Evolution
+import DGM.Types.Basic
+import DGM.Utils.Common
+
 /-!
 # DGM.Evolution.Archive — Verified Evolution Archive
 
@@ -5,11 +9,6 @@ The archive stores all agents in the evolutionary process as a verified tree.
 Each node carries its evolution proof and performance metrics.
 Ported from: `utils/evo_utils.py` and archive logic in `DGM_outer.py`
 -/
-
-import DGM.Types.Evolution
-import DGM.Types.Basic
-import DGM.Utils.Common
-
 namespace DGM.Evolution
 
 open DGM.Types

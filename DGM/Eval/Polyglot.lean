@@ -1,13 +1,12 @@
+import DGM.Types.Basic
+import DGM.Utils.Docker
+
 /-!
 # DGM.Eval.Polyglot — Polyglot Benchmark Evaluation Harness
 
 Multi-language evaluation framework supporting C++, Go, Java, JavaScript, Python, Rust.
 Ported from: `polyglot/harness.py` and `polyglot/run_evaluation.py`
 -/
-
-import DGM.Types.Basic
-import DGM.Utils.Docker
-
 namespace DGM.Eval.Polyglot
 
 open DGM.Types

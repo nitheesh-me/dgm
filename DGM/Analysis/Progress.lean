@@ -1,3 +1,5 @@
+import DGM.Evolution.Archive
+
 /-!
 # DGM.Analysis.Progress — Progress Tracking and Reporting
 
@@ -7,9 +9,6 @@ Ported from: `analysis/plot_progress.py` and `analysis/visualize_archive.py`
 Note: Visualization (matplotlib, networkx) is kept in Python.
 This module handles the data extraction and reporting in Lean 4.
 -/
-
-import DGM.Evolution.Archive
-
 namespace DGM.Analysis.Progress
 
 open DGM.Evolution

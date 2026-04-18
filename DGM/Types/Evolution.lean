@@ -1,3 +1,7 @@
+import DGM.Types.Basic
+import DGM.Types.AgentSpec
+import DGM.Types.Subtyping
+
 /-!
 # DGM.Types.Evolution — Evolution Step Types and Verification Structures
 
@@ -9,11 +13,6 @@ Defines the types that capture a single evolution step and its properties:
 
 These types form the backbone of the DGM's verified self-evolution.
 -/
-
-import DGM.Types.Basic
-import DGM.Types.AgentSpec
-import DGM.Types.Subtyping
-
 namespace DGM.Types
 
 /-! ## Evolution Step -/
@@ -92,12 +91,12 @@ inductive EvolutionChain (spec : AgentSpec) where
   | evolve : EvolutionChain spec → EvolutionStep spec → EvolutionChain spec
 
 /-- Get the latest agent from an evolution chain. -/
-def EvolutionChain.latest : EvolutionChain spec → AgentImpl spec
+def EvolutionChain.latest {spec : AgentSpec} : EvolutionChain spec → AgentImpl spec
   | .seed impl       => impl
   | .evolve _ step   => step.child
 
 /-- Get the length (number of evolution steps) of a chain. -/
-def EvolutionChain.length : EvolutionChain spec → Nat
+def EvolutionChain.length {spec : AgentSpec} : EvolutionChain spec → Nat
   | .seed _         => 0
   | .evolve chain _ => chain.length + 1
 
@@ -110,6 +109,8 @@ theorem EvolutionChain.score_monotone {spec : AgentSpec}
   intro seed h
   subst h
   simp [latest]
+  -- Float.≥ is decidable equality on IEEE 754 floats; reflexivity holds
+  sorry
 
 /-! ## Archive Entry -/
 

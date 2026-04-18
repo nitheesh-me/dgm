@@ -1,12 +1,11 @@
+import DGM.Types.Basic
+
 /-!
 # DGM.Prompts.TestRepo — Test Description Prompt Generation
 
 Generates test execution instructions for different benchmark types.
 Ported from: `prompts/testrepo_prompt.py`
 -/
-
-import DGM.Types.Basic
-
 namespace DGM.Prompts.TestRepo
 
 open DGM.Types
