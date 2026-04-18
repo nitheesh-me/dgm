@@ -15,7 +15,7 @@ namespace DGM.Tools
 structure BashConfig where
   /-- Maximum execution time in milliseconds. -/
   timeoutMs : Nat := 120000
-  /-- Working directory. -/
+  /-- Working directory (as a string path, converted to FilePath on use). -/
   workDir : Option String := none
   deriving Repr, Inhabited
 

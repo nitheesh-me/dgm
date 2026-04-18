@@ -212,10 +212,10 @@ def runEvolutionLoop (config : DGMConfig) : IO ConcreteArchive := do
   IO.println s!"[DGM] Best initial score: {initialArchive.bestScore}"
 
   -- Main evolution loop
+  let separator := String.mk (List.replicate 50 '=')
   let mut archive := initialArchive
   for gen in List.range (config.maxGenerations - startGen) do
     let genNum := startGen + gen
-    let separator := String.mk (List.replicate 50 '=')
     IO.println s!"\n{separator}"
     IO.println s!"Generation {genNum}"
     IO.println s!"  Archive: {archive.entries.length} entries, Best: {archive.bestScore}"
@@ -230,7 +230,6 @@ def runEvolutionLoop (config : DGMConfig) : IO ConcreteArchive := do
     IO.println s!"    Archive size:   {archive.entries.length}"
     IO.println s!"    Best score:     {archive.bestScore}"
 
-  let separator := String.mk (List.replicate 50 '=')
   IO.println s!"\n{separator}"
   IO.println s!"Evolution complete after {config.maxGenerations} generations"
   IO.println s!"Final archive: {archive.entries.length} entries"

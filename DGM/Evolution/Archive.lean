@@ -255,6 +255,7 @@ def saveArchiveState (metadataPath : String) (generation : Nat)
   match dir with
   | some d => IO.FS.createDirAll d
   | none => pure ()
+  -- Open handle in append mode, write a single line, then let it be closed
   let h ← IO.FS.Handle.mk ⟨metadataPath⟩ .append
   h.putStrLn line
 
