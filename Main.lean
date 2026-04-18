@@ -26,10 +26,18 @@ def parseFlagNat (args : List String) (flag : String) (default : Nat) : Nat :=
 def parseFlagFloat (args : List String) (flag : String) (default : Float) : Float :=
   match parseFlag args flag with
   | some s =>
-    -- Simple float parsing: try integer part
-    match s.toNat? with
-    | some n => Float.ofNat n
-    | none => default
+    -- Parse "N.M" format
+    match s.splitOn "." with
+    | [intPart, fracPart] =>
+      let intVal := intPart.toNat?.getD 0
+      let fracVal := fracPart.toNat?.getD 0
+      let fracDivisor := Float.ofNat (10 ^ fracPart.length)
+      Float.ofNat intVal + Float.ofNat fracVal / fracDivisor
+    | [intPart] =>
+      match intPart.toNat? with
+      | some n => Float.ofNat n
+      | none => default
+    | _ => default
   | none => default
 
 /-- Print usage help. -/
@@ -81,7 +89,7 @@ def main (args : List String) : IO Unit := do
     selfImproveSize   := parseFlagNat args "--selfimprove_size" 2
     selfImproveWorkers := parseFlagNat args "--selfimprove_workers" 2
     selectionMethod   := selectionMethod
-    noiseLeeway       := parseFlagFloat args "--eval_noise" 1  -- 0.01 default but Float parsing is basic
+    noiseLeeway       := parseFlagFloat args "--eval_noise" 0.01
     prevRunDir        := parseFlag args "--continue_from"
     polyglot          := hasFlag args "--polyglot"
     numEvals          := parseFlagNat args "--num_swe_evals" 1

@@ -342,13 +342,22 @@ where
 
   /-- Parse evaluation results from JSON. -/
   parseEvalResults (json : String) : IO OverallPerformance := do
+    -- Parse accuracy_score which is already a float in 0.0-1.0 range
     let score := match json.splitOn "\"accuracy_score\":" with
       | [_, rest] =>
         let numStr := rest.trim.takeWhile (fun c => c.isDigit || c == '.' || c == '-')
-        -- Simple float parsing
-        match numStr.toNat? with
-        | some n => Float.ofNat n / 100.0
-        | none => 0.0
+        -- Parse "N.M" format
+        match numStr.splitOn "." with
+        | [intPart, fracPart] =>
+          let intVal := intPart.toNat?.getD 0
+          let fracVal := fracPart.toNat?.getD 0
+          let fracDivisor := Float.ofNat (10 ^ fracPart.length)
+          Float.ofNat intVal + Float.ofNat fracVal / fracDivisor
+        | [intPart] =>
+          match intPart.toNat? with
+          | some n => Float.ofNat n
+          | none => 0.0
+        | _ => 0.0
       | _ => 0.0
     return {
       accuracyScore := score

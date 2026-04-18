@@ -56,7 +56,11 @@ def ConcreteArchive.worstScore (archive : ConcreteArchive) : Float :=
 /-! ## Random Sampling -/
 
 /-- Generate a pseudo-random Float in [0, 1) using nanosecond clock.
-Simple but sufficient for selection — not cryptographic. -/
+Uses lower bits of nanosecond counter for entropy.
+NOTE: This is not cryptographically secure and may have low entropy
+in tight loops. For production, consider using a proper PRNG seeded
+from system entropy. Sufficient for parent selection where slight
+bias is acceptable. -/
 def randomFloat : IO Float := do
   let ns ← IO.monoNanosNow
   -- Use lower bits of nanosecond counter for randomness
