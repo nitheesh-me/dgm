@@ -33,6 +33,7 @@ import DGM.Tools.Bash
 import DGM.Tools.Edit
 
 -- Agent system
+import DGM.Agent.MockLLM
 import DGM.Agent.LLM
 import DGM.Agent.CodingAgent
 import DGM.Agent.PolyglotAgent

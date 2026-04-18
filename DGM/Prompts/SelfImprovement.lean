@@ -135,7 +135,7 @@ def findEvalLogs (entry outDir : String) (commitId : String := "initial")
   let entries ← System.FilePath.readDir ⟨logDir⟩
   let logFiles := entries.toList
     |>.filter (·.fileName.endsWith ".md")
-    |>.map (s!"{logDir}/{·.fileName}")
+    |>.map (fun e => s!"{logDir}/{e.fileName}")
 
   let mut logs : List String := []
   for file in logFiles do

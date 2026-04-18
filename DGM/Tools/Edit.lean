@@ -46,21 +46,24 @@ def validatePath (path : String) (command : EditCommand) : IO ValidPath := do
 def readFileWithLineNumbers (path : String) : IO String := do
   let content ← IO.FS.readFile ⟨path⟩
   let lines := content.splitOn "\n"
-  let numbered := lines.enum.map fun (i, line) =>
-    s!"{i + 1}\t{line}"
-  return String.intercalate "\n" numbered
+  let mut result : List String := []
+  let mut lineNum : Nat := 1
+  for line in lines do
+    result := result ++ [s!"{lineNum}\t{line}"]
+    lineNum := lineNum + 1
+  return String.intercalate "\n" result
 
 /-- List directory contents (non-recursive, up to 2 levels). -/
 def listDirectory (path : String) : IO String := do
   let entries ← System.FilePath.readDir ⟨path⟩
-  let names := entries.map (·.fileName)
-  let sorted := names.toList.mergeSort (· < ·)
+  let names := entries.toList.map (·.fileName)
+  let sorted := names.mergeSort (· < ·)
   return String.intercalate "\n" sorted
 
 /-- View a file or directory. -/
 def viewPath (path : String) : IO String := do
-  let metadata ← System.FilePath.metadata ⟨path⟩
-  if metadata.type == .dir then
+  let isDir ← System.FilePath.isDir ⟨path⟩
+  if isDir then
     listDirectory path
   else
     readFileWithLineNumbers path

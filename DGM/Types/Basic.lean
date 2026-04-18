@@ -162,6 +162,16 @@ inductive LLMProvider where
   | deepseek
   deriving Repr, BEq, Inhabited
 
+/-- Get the string name of an LLM provider. -/
+def LLMProvider.toString : LLMProvider → String
+  | .anthropic => "anthropic"
+  | .openai    => "openai"
+  | .bedrock   => "bedrock"
+  | .vertexAI  => "vertexAI"
+  | .deepseek  => "deepseek"
+
+instance : ToString LLMProvider := ⟨LLMProvider.toString⟩
+
 /-- LLM model configuration. -/
 structure LLMModel where
   provider    : LLMProvider

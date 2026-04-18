@@ -215,7 +215,8 @@ def runEvolutionLoop (config : DGMConfig) : IO ConcreteArchive := do
   let mut archive := initialArchive
   for gen in List.range (config.maxGenerations - startGen) do
     let genNum := startGen + gen
-    IO.println s!"\n{'='|>.toString.pushn '=' 50}"
+    let separator := String.mk (List.replicate 50 '=')
+    IO.println s!"\n{separator}"
     IO.println s!"Generation {genNum}"
     IO.println s!"  Archive: {archive.entries.length} entries, Best: {archive.bestScore}"
 
@@ -229,7 +230,8 @@ def runEvolutionLoop (config : DGMConfig) : IO ConcreteArchive := do
     IO.println s!"    Archive size:   {archive.entries.length}"
     IO.println s!"    Best score:     {archive.bestScore}"
 
-  IO.println s!"\n{'='|>.toString.pushn '=' 50}"
+  let separator := String.mk (List.replicate 50 '=')
+  IO.println s!"\n{separator}"
   IO.println s!"Evolution complete after {config.maxGenerations} generations"
   IO.println s!"Final archive: {archive.entries.length} entries"
   IO.println s!"Final best score: {archive.bestScore}"
@@ -271,8 +273,5 @@ structure VerifiedEvolutionResult (spec : AgentSpec) where
   concreteArchive : ConcreteArchive
   /-- The number of generations run. -/
   generationsRun : Nat
-  /-- Proof sketch: archive quality never decreased.
-      Full proof requires axiomatizing IO behavior. -/
-  monotonicityWitness : concreteArchive.bestScore ≥ 0.0
 
 end DGM.Evolution.Outer

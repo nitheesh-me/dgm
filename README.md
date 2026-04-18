@@ -22,7 +22,7 @@ Repository for **Darwin Gödel Machine (DGM)**, a novel self-improving system th
 ### Quick Start (Lean 4)
 
 ```bash
-# 1. API keys — add to ~/.bashrc
+# 1. API keys — add to ~/.bashrc (optional; mock mode is used when keys are absent)
 export OPENAI_API_KEY='...'
 export ANTHROPIC_API_KEY='...'
 
@@ -37,6 +37,19 @@ newgrp docker
 chmod +x setup.sh
 ./setup.sh
 ```
+
+### Mock Mode (No API Keys)
+
+When no API keys are set, the DGM automatically runs in **mock mode**:
+- LLM calls return pre-selected probabilistic responses based on prompt content
+- Responses are deterministically selected via content hashing for reproducibility
+- Mock pools cover diagnosis, improvement evaluation, and coding agent scenarios
+- The full pipeline can be exercised end-to-end without incurring API costs
+
+This is useful for:
+- Validating the setup and pipeline without API credentials
+- Testing changes to the evolution loop or archive logic
+- CI/CD environments where API keys are not available
 
 ### Manual Setup (Step by Step)
 
@@ -136,6 +149,7 @@ DGM/
 │   ├── UpgradeCorrectness.lean — Changes confined to intended delta domain
 │   └── ArchiveMonotonicity.lean — Archive best score never decreases
 ├── Agent/                      — Agent and LLM interface
+│   ├── MockLLM.lean            — Mock responses when API keys are missing
 │   ├── LLM.lean                — Real LLM API calls via curl (Anthropic + OpenAI)
 │   ├── CodingAgent.lean        — SWE-bench coding agent
 │   └── PolyglotAgent.lean      — Multi-language agent variant

@@ -109,8 +109,8 @@ def main (args : List String) : IO Unit := do
   let openaiKey ← IO.getEnv "OPENAI_API_KEY"
   match (anthropicKey, openaiKey) with
   | (none, none) =>
-    IO.eprintln "WARNING: Neither ANTHROPIC_API_KEY nor OPENAI_API_KEY is set."
-    IO.eprintln "  Set at least one API key to enable LLM calls."
+    IO.eprintln "INFO: No API keys set. Running in MOCK MODE with pre-selected responses."
+    IO.eprintln "  To use real LLMs, set: export OPENAI_API_KEY='...' and/or ANTHROPIC_API_KEY='...'"
   | _ => pure ()
 
   -- Verify Docker

@@ -49,7 +49,7 @@ This is the core execution function, ported from `BashSession.run()`.
 Uses `IO.Process.output` for synchronous execution with captured output. -/
 def executeBash (command : String) (config : BashConfig := {}) : IO BashResult := do
   let args := #["-c", command]
-  let cwd := config.workDir.getD "."
+  let cwd := config.workDir.map (⟨·⟩ : String → System.FilePath)
   let output ← IO.Process.output {
     cmd := "/bin/bash"
     args := args

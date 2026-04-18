@@ -255,7 +255,7 @@ def saveArchiveState (metadataPath : String) (generation : Nat)
   match dir with
   | some d => IO.FS.createDirAll d
   | none => pure ()
-  IO.FS.Handle.mk ⟨metadataPath⟩ .append >>= fun h =>
-    h.putStrLn line
+  let h ← IO.FS.Handle.mk ⟨metadataPath⟩ .append
+  h.putStrLn line
 
 end DGM.Evolution

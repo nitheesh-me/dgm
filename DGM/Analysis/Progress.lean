@@ -46,7 +46,7 @@ def formatProgressReport (progress : List GenerationProgress) : String :=
   let header := "Gen | Archive | Best    | Avg     | Compiled/Attempted"
   let separator := String.mk (List.replicate 60 '-')
   let rows := progress.map fun p =>
-    s!"{p.generation:>3} | {p.archiveSize:>7} | {p.bestScore} | {p.avgScore} | {p.numCompiled}/{p.numAttempted}"
+    s!"{p.generation} | {p.archiveSize} | {p.bestScore} | {p.avgScore} | {p.numCompiled}/{p.numAttempted}"
   String.intercalate "\n" ([header, separator] ++ rows)
 
 /-- Write progress data to a CSV file for external plotting. -/

@@ -14,6 +14,7 @@ import DGM.Utils.Docker
 import DGM.Utils.Git
 import DGM.Utils.Common
 import DGM.Prompts.SelfImprovement
+import DGM.Prompts.DiagnoseImprovement
 
 namespace DGM.Evolution
 

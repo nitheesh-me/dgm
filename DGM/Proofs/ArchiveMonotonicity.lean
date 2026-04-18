@@ -29,7 +29,9 @@ noncomputable def archiveWorstScore {spec : AgentSpec}
     (archive : EvolutionArchive spec) : Float :=
   match archive.entries with
   | [] => 0.0
-  | es => (es.getLast!).agent.score
+  | es => match es.getLast? with
+    | some e => e.agent.score
+    | none => 0.0
 
 /-! ## Update Archive Operation -/
 
@@ -41,7 +43,9 @@ def qualifiesForArchive {spec : AgentSpec}
     (noiseLeeway : Float) : Prop :=
   match archive.entries with
   | [] => True  -- Empty archive admits everyone
-  | es => candidate.score ≥ (es.getLast!).agent.score - noiseLeeway
+  | es => match es.getLast? with
+    | some e => candidate.score ≥ e.agent.score - noiseLeeway
+    | none => True
 
 /-- Result of updating an archive with new candidates.
 The archive update maintains the sorting invariant. -/
@@ -65,7 +69,7 @@ theorem archive_best_score_monotone {spec : AgentSpec}
   cases archive.entries with
   | nil => omega
   | cons e es =>
-    simp [List.getLast!] at h_qual
+    simp [List.getLast?] at h_qual
     linarith
 
 /-- If the archive is non-empty and we only add entries with score ≥ worst - leeway,

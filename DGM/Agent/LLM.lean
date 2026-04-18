@@ -8,6 +8,7 @@ Ported from: `llm.py` and `llm_withtools.py`
 
 import DGM.Types.Basic
 import DGM.Tools.Tool
+import DGM.Agent.MockLLM
 
 namespace DGM.Agent
 
@@ -41,6 +42,8 @@ structure LLMClientConfig where
   temperature : Float := 1.0
   /-- AWS region for Bedrock. -/
   awsRegion  : Option String := none
+  /-- Whether to use mock responses (no API key available). -/
+  useMock    : Bool := false
   deriving Repr, Inhabited
 
 /-- An LLM client capable of making API calls. -/
@@ -61,7 +64,8 @@ def inferProvider (modelName : String) : LLMProvider :=
     .openai
 
 /-- Create an LLM client for the given model.
-Ported from `create_client` in `llm.py`. -/
+Ported from `create_client` in `llm.py`.
+When API keys are missing, automatically enables mock mode. -/
 def createClient (modelName : String) : IO LLMClient := do
   let provider := inferProvider modelName
   let apiKey ← match provider with
@@ -73,12 +77,22 @@ def createClient (modelName : String) : IO LLMClient := do
   let awsRegion ← match provider with
     | .bedrock => IO.getEnv "AWS_REGION_NAME"
     | _        => pure none
-  IO.println s!"[LLM] Using {provider} with model {modelName}"
+  -- Determine if mock mode is needed
+  let useMock ← MockLLM.shouldUseMock
+  let needsKey := match provider with
+    | .bedrock | .vertexAI => false
+    | _ => true
+  let useMock := useMock || (needsKey && apiKey.isNone)
+  if useMock then
+    IO.eprintln s!"[LLM] Mock mode: no API key for {provider}, using pre-selected responses"
+  else
+    IO.println s!"[LLM] Using {provider} with model {modelName}"
   return { config := {
     modelName := modelName
     provider := provider
     apiKey := apiKey
     awsRegion := awsRegion
+    useMock := useMock
   }}
 
 /-! ## LLM Response Types -/
@@ -161,7 +175,7 @@ def buildToolsJsonOpenAI (tools : List ToolInfo) : String :=
 def buildAnthropicPayload (client : LLMClient) (messages : List Message)
     (systemMessage : String) (tools : List ToolInfo) : String :=
   let model := match client.config.provider with
-    | .bedrock => client.config.modelName.splitOn "/" |>.getLast!
+    | .bedrock => client.config.modelName.splitOn "/" |>.getLast?.getD client.config.modelName
     | _        => client.config.modelName
   let messagesJson := buildMessagesJson messages
   let toolsSection := if tools.isEmpty then ""
@@ -287,11 +301,17 @@ where
       else [{ id := idVal, name := nameVal, input := argsVal }]
     | _ => []
 
-/-- Make a single LLM API call via curl.
-Shells out to `curl` with the appropriate headers and payload. -/
+/-- Make a single LLM API call via curl, or return mock response if in mock mode.
+Shells out to `curl` with the appropriate headers and payload.
+When `client.config.useMock` is true, returns pre-selected probabilistic responses. -/
 def callLLM (client : LLMClient) (messages : List Message)
     (systemMessage : String) (tools : List ToolInfo := [])
     : IO LLMRawResponse := do
+  -- Mock mode: return pre-selected response
+  if client.config.useMock then
+    let (content, stopReason, _toolCalls) ← MockLLM.mockLLMCall messages systemMessage tools
+    return { content := content, stopReason := stopReason, toolUseBlocks := [] }
+  -- Real API call
   match client.config.provider with
   | .anthropic | .bedrock | .vertexAI =>
     callAnthropic client messages systemMessage tools
@@ -305,7 +325,7 @@ where
     let apiUrl := match client.config.provider with
       | .bedrock =>
         let region := client.config.awsRegion.getD "us-east-1"
-        let model := client.config.modelName.splitOn "/" |>.getLast!
+        let model := client.config.modelName.splitOn "/" |>.getLast?.getD client.config.modelName
         s!"https://bedrock-runtime.{region}.amazonaws.com/model/{model}/invoke"
       | _ => client.config.endpoint.getD "https://api.anthropic.com/v1/messages"
     -- Write payload to temp file to avoid shell escaping issues

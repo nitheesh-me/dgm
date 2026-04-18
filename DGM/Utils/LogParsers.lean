@@ -53,11 +53,11 @@ def parseLogDjango (log : String) : List (String × TestStatus) :=
   lines.filterMap fun line =>
     let trimmed := line.trim
     if trimmed.containsSubstr "... ok" then
-      some (trimmed.splitOn " " |>.head!, TestStatus.passed)
+      some (trimmed.splitOn " " |>.head?.getD trimmed, TestStatus.passed)
     else if trimmed.containsSubstr "... FAIL" then
-      some (trimmed.splitOn " " |>.head!, TestStatus.failed)
+      some (trimmed.splitOn " " |>.head?.getD trimmed, TestStatus.failed)
     else if trimmed.containsSubstr "... ERROR" then
-      some (trimmed.splitOn " " |>.head!, TestStatus.error)
+      some (trimmed.splitOn " " |>.head?.getD trimmed, TestStatus.error)
     else
       none
 
@@ -69,10 +69,10 @@ def parseLogCargo (log : String) : List (String × TestStatus) :=
   lines.filterMap fun line =>
     let trimmed := line.trim
     if trimmed.containsSubstr "... ok" then
-      let name := trimmed.splitOn " " |>.head!
+      let name := trimmed.splitOn " " |>.head?.getD trimmed
       some (name, TestStatus.passed)
     else if trimmed.containsSubstr "... FAILED" then
-      let name := trimmed.splitOn " " |>.head!
+      let name := trimmed.splitOn " " |>.head?.getD trimmed
       some (name, TestStatus.failed)
     else
       none
