@@ -10,6 +10,7 @@ Ported from: `DGM_outer.py`
 import DGM.Types.Evolution
 import DGM.Evolution.Archive
 import DGM.Evolution.SelfImprove
+import DGM.Utils.Common
 
 namespace DGM.Evolution.Outer
 
@@ -53,15 +54,32 @@ structure DGMConfig where
 Ported from `initialize_run` in `DGM_outer.py`.
 Returns: (archive, starting generation number) -/
 def initializeRun (config : DGMConfig) : IO (ConcreteArchive × Nat) := do
+  -- Create output directory
+  let runId ← do
+    let ns ← IO.monoNanosNow
+    pure s!"{ns}"
+  let outputDir := s!"{config.outputDir}/{runId}"
+  IO.FS.createDirAll ⟨outputDir⟩
+
   -- Check for previous run to continue
   match config.prevRunDir with
   | some prevDir =>
     let metadataPath := s!"{prevDir}/dgm_metadata.jsonl"
     let archive ← loadArchive metadataPath
     let startGen := archive.entries.length  -- Approximate
+    IO.println s!"[Init] Continuing from {prevDir}, generation {startGen}"
     return (archive, startGen)
   | none =>
     -- Fresh start with initial agent
+    let initialFolderName := if config.polyglot then "initial_polyglot" else "initial"
+    -- Copy initial results if available
+    let initialSrc := System.FilePath.mk initialFolderName
+    let initialDst := System.FilePath.mk s!"{outputDir}/initial"
+    let srcExists ← initialSrc.pathExists
+    let dstExists ← initialDst.pathExists
+    if srcExists && !dstExists then
+      let _ ← IO.Process.output { cmd := "cp", args := #["-r", initialFolderName, s!"{outputDir}/initial"] }
+
     let initialEntry : ArchiveMetadata := {
       runId := "initial"
       parentCommit := "initial"
@@ -71,6 +89,7 @@ def initializeRun (config : DGMConfig) : IO (ConcreteArchive × Nat) := do
       isCompiled := true
     }
     let archive := ConcreteArchive.empty.add initialEntry
+    IO.println s!"[Init] Fresh start with initial agent"
     return (archive, 0)
 
 /-! ## Full Evaluation Threshold -/
@@ -94,6 +113,37 @@ structure GenerationResult where
   compiledResults : List SelfImproveResult
   deriving Repr, Inhabited
 
+/-- Run self-improvement workers in parallel using Lean 4 Tasks.
+Spawns up to `numWorkers` tasks concurrently.
+Ported from `ThreadPoolExecutor` usage in `DGM_outer.py`. -/
+def runSelfImprovementsParallel (configs : List SelfImproveConfig)
+    (numWorkers : Nat) : IO (List SelfImproveResult) := do
+  -- Split configs into batches of numWorkers
+  let batches := batchList configs numWorkers
+  let mut results : List SelfImproveResult := []
+  for batch in batches do
+    -- Spawn all tasks in this batch
+    let tasks ← batch.mapM fun config => do
+      IO.asTask (selfImprove config)
+    -- Wait for all tasks in this batch
+    for task in tasks do
+      match ← IO.wait task with
+      | .ok result => results := results ++ [result]
+      | .error e =>
+        IO.eprintln s!"[Worker] Self-improvement failed: {e}"
+  return results
+where
+  batchList {α : Type} (xs : List α) (size : Nat) : List (List α) :=
+    if size == 0 then [xs]
+    else go xs size []
+  where
+    go : List α → Nat → List (List α) → List (List α)
+      | [], _, acc => acc.reverse
+      | remaining, sz, acc =>
+        let batch := remaining.take sz
+        let rest := remaining.drop sz
+        go rest sz (batch :: acc)
+
 /-- Run a single generation of the DGM evolution loop.
 
 1. Select parents from the archive
@@ -106,30 +156,30 @@ def runGeneration (config : DGMConfig) (archive : ConcreteArchive)
     (generation : Nat) (testTaskList : List String) : IO GenerationResult := do
   -- Step 1: Choose parents
   let parents ← chooseParents archive config.selfImproveSize config.selectionMethod
+  IO.println s!"  Parents selected: {parents.map (·.runId)}"
 
-  -- Step 2: Run self-improvement attempts
-  -- In production, this uses Task for parallelism
-  let mut results : List SelfImproveResult := []
-  for parent in parents do
-    let selfImproveConfig : SelfImproveConfig := {
-      parentCommit := parent.runId
-      outputDir := config.outputDir
-      forceRebuild := config.forceRebuild
-      numEvals := config.numEvals
-      postImproveDiagnose := config.postImproveDiagnose
-      entry := parent.entry
-      testTaskList := testTaskList
-      fullEvalThreshold := getFullEvalThreshold archive
-      runBaseline := config.runBaseline
-      polyglot := config.polyglot
-    }
-    let result ← selfImprove selfImproveConfig
-    results := results ++ [result]
+  -- Step 2: Build self-improvement configs
+  let selfImproveConfigs := parents.map fun parent => {
+    parentCommit := parent.runId
+    outputDir := config.outputDir
+    forceRebuild := config.forceRebuild
+    numEvals := config.numEvals
+    postImproveDiagnose := config.postImproveDiagnose
+    entry := parent.entry
+    testTaskList := testTaskList
+    fullEvalThreshold := getFullEvalThreshold archive
+    runBaseline := config.runBaseline
+    polyglot := config.polyglot
+    : SelfImproveConfig
+  }
 
-  -- Step 3: Filter to compiled runs
+  -- Step 3: Run self-improvements in parallel
+  let results ← runSelfImprovementsParallel selfImproveConfigs config.selfImproveWorkers
+
+  -- Step 4: Filter to compiled runs
   let compiled := filterCompiled results
 
-  -- Step 4: Update archive
+  -- Step 5: Update archive
   let newEntries := compiled.map (·.toArchiveMetadata generation)
   let newArchive := updateArchive archive newEntries config.noiseLeeway
 
@@ -154,35 +204,55 @@ def runEvolutionLoop (config : DGMConfig) : IO ConcreteArchive := do
   let (initialArchive, startGen) ← initializeRun config
 
   -- Load test task lists
-  -- In production: load from swe_bench/subsets/*.json or polyglot/subsets/*.json
-  let testTaskList : List String := []
+  let testTaskList ← loadTestTaskList config
+  IO.println s!"[DGM] Loaded {testTaskList.length} test tasks"
 
-  IO.println s!"Starting DGM evolution from generation {startGen}"
-  IO.println s!"Initial archive size: {initialArchive.entries.length}"
-  IO.println s!"Best initial score: {initialArchive.bestScore}"
+  IO.println s!"[DGM] Starting evolution from generation {startGen}"
+  IO.println s!"[DGM] Initial archive size: {initialArchive.entries.length}"
+  IO.println s!"[DGM] Best initial score: {initialArchive.bestScore}"
 
   -- Main evolution loop
   let mut archive := initialArchive
   for gen in List.range (config.maxGenerations - startGen) do
     let genNum := startGen + gen
-    IO.println s!"\n=== Generation {genNum} ==="
-    IO.println s!"Archive size: {archive.entries.length}, Best: {archive.bestScore}"
+    IO.println s!"\n{'='|>.toString.pushn '=' 50}"
+    IO.println s!"Generation {genNum}"
+    IO.println s!"  Archive: {archive.entries.length} entries, Best: {archive.bestScore}"
 
     let result ← runGeneration config archive genNum testTaskList
 
     archive := result.archive
 
-    IO.println s!"Generation {genNum} complete:"
-    IO.println s!"  Total attempts: {result.allResults.length}"
-    IO.println s!"  Compiled: {result.compiledResults.length}"
-    IO.println s!"  New archive size: {archive.entries.length}"
-    IO.println s!"  Best score: {archive.bestScore}"
+    IO.println s!"  Results:"
+    IO.println s!"    Total attempts: {result.allResults.length}"
+    IO.println s!"    Compiled:       {result.compiledResults.length}"
+    IO.println s!"    Archive size:   {archive.entries.length}"
+    IO.println s!"    Best score:     {archive.bestScore}"
 
-  IO.println s!"\nEvolution complete after {config.maxGenerations} generations"
-  IO.println s!"Final archive size: {archive.entries.length}"
+  IO.println s!"\n{'='|>.toString.pushn '=' 50}"
+  IO.println s!"Evolution complete after {config.maxGenerations} generations"
+  IO.println s!"Final archive: {archive.entries.length} entries"
   IO.println s!"Final best score: {archive.bestScore}"
 
   return archive
+where
+  /-- Load test task list from subset JSON files. -/
+  loadTestTaskList (config : DGMConfig) : IO (List String) := do
+    let subsetDir := if config.polyglot then "./polyglot/subsets" else "./swe_bench/subsets"
+    let smallPath := s!"{subsetDir}/small.json"
+    let exists ← System.FilePath.pathExists ⟨smallPath⟩
+    if exists then
+      let content ← IO.FS.readFile ⟨smallPath⟩
+      -- Simple JSON array parsing: extract strings from ["id1", "id2", ...]
+      let inner := content.trim
+        |>.dropWhile (· == '[')
+        |>.takeWhile (· != ']')
+      return inner.splitOn ","
+        |>.map (·.trim.replace "\"" "")
+        |>.filter (·.length > 0)
+    else
+      IO.eprintln s!"[DGM] Warning: Test task list not found at {smallPath}"
+      return []
 
 /-! ## Verified Evolution Loop -/
 

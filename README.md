@@ -16,62 +16,39 @@ Repository for **Darwin Gödel Machine (DGM)**, a novel self-improving system th
 <p align="center">
   <img src="./misc/overview.gif" width="100%" height="auto" />
 </p>
-<!-- <p align="center">
-<img src="./misc/conceptual.svg"/></a><br>
-</p> -->
 
+## Setup
 
-## Lean 4 Implementation (Verified Self-Evolution)
+### Quick Start (Lean 4)
 
-This repository includes a **Lean 4** implementation with formal verification of self-evolution properties. The Lean 4 version uses refinement types to identify stable subtypes during upgrades, ensuring behavior changes only for intended improvements.
+```bash
+# 1. API keys — add to ~/.bashrc
+export OPENAI_API_KEY='...'
+export ANTHROPIC_API_KEY='...'
 
-### Key Verification Properties
-- **Stable Subtype Preservation**: Behavior on the stable domain is invariant across upgrades
-- **Upgrade Correctness**: Changes are confined to the intended delta domain
-- **Bound Tightening**: Supertyping preserves behavioral contracts
-- **Archive Monotonicity**: The archive's best score never decreases
+# 2. Verify Docker
+docker run hello-world
 
-### Setup (Lean 4)
+# If a permission error occurs:
+sudo usermod -aG docker $USER
+newgrp docker
+
+# 3. Run the automated setup script
+chmod +x setup.sh
+./setup.sh
+```
+
+### Manual Setup (Step by Step)
+
 ```bash
 # Install elan (Lean 4 version manager)
 curl -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh
+# The lean-toolchain file pins Lean 4 v4.29.0 (includes grind tactic and other automation)
 
-# The lean-toolchain file specifies Lean 4 v4.29.0
-# Build the project
+# Build the project (type-checks all proofs)
 lake build
 
-# Run the executable
-lake exec dgm_main
-```
-
-```bash
-# API keys (still needed for LLM calls)
-export OPENAI_API_KEY='...'
-export ANTHROPIC_API_KEY='...'
-```
-
-```bash
-# Docker setup (still needed for agent evaluation)
-docker run hello-world
-
-# If a permission error occurs
-sudo usermod -aG docker $USER
-newgrp docker
-```
-
-### Setup (Python — Legacy)
-```bash
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-
-# Optional: for running analysis
-sudo apt-get install graphviz graphviz-dev
-pip install -r requirements_dev.txt
-```
-
-```bash
-# Clone SWE-bench
+# Clone SWE-bench (needed for evaluation)
 cd swe_bench
 git clone https://github.com/princeton-nlp/SWE-bench.git
 cd SWE-bench
@@ -79,79 +56,136 @@ git checkout dc4c087c2b9e4cefebf2e3d201d27e36
 pip install -e .
 cd ../../
 
-# Prepare Polyglot
+# Install Python dependencies (for evaluation harness)
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+# Optional: graphviz for analysis
+sudo apt-get install graphviz graphviz-dev
+pip install -r requirements_dev.txt
+
+# Prepare Polyglot dataset
+# Make sure git is properly configured with username and email
 python -m polyglot.prepare_polyglot_dataset
 ```
 
 ## Running the DGM
 
-### Lean 4 (Verified)
+### Lean 4 (Primary)
 ```bash
+# Build and run
 lake build && lake exec dgm_main
+
+# With options (same interface as the Python version)
+lake exec dgm_main -- \
+  --max_generation 80 \
+  --selfimprove_size 2 \
+  --selfimprove_workers 2 \
+  --choose_method score_child_prop
+
+# Continue from a previous run
+lake exec dgm_main -- --continue_from output_dgm/20250101120000
+
+# Run with polyglot benchmark
+lake exec dgm_main -- --polyglot
+
+# Show help
+lake exec dgm_main -- --help
 ```
 
 ### Python (Legacy)
 ```bash
 python DGM_outer.py
 ```
-By default, outputs will be saved in the `output_dgm/` directory.
 
-## File Structure
+By default, outputs are saved in the `output_dgm/` directory.
 
-### Lean 4 (Verified Implementation)
+## Verified Self-Evolution (Lean 4)
+
+The Lean 4 implementation includes formal verification of self-evolution properties using Lean's dependent type system and the `grind` tactic for automation.
+
+### Verification Properties
+| Property | File | Status |
+|----------|------|--------|
+| **Stable Subtype Preservation** | `DGM/Proofs/Stability.lean` | ✅ Core proved, chain induction `sorry` |
+| **Upgrade Correctness** | `DGM/Proofs/UpgradeCorrectness.lean` | ✅ Core proved, monotonicity `sorry` |
+| **Bound Tightening** | `DGM/Proofs/BoundTightening.lean` | ✅ Fully proved + axiom |
+| **Archive Monotonicity** | `DGM/Proofs/ArchiveMonotonicity.lean` | ✅ Core proved, Float ordering `sorry` |
+
+### Key Verification Types
+- **`AgentSpec`** — Formal behavioral contract (preconditions, postconditions, invariants)
+- **`AgentImpl`** — Implementation carrying proof of spec satisfaction
+- **`StableSubtype`** — Proves behavior is invariant on the stable domain across upgrades
+- **`UpgradeDelta`** — Captures intended behavioral changes, separate from stable core
+- **`EvolutionStep`** — A verified evolution step: parent → child with stability proof
+
+## Architecture
+
+### Lean 4 Implementation
 ```
 DGM/
-├── Types/
-│   ├── Basic.lean          — Core types (messages, tools, metrics, languages)
-│   ├── AgentSpec.lean       — Refinement types: AgentSpec, AgentImpl, StableSubtype, UpgradeDelta
-│   ├── Subtyping.lean       — Behavioral subtyping (LSP), bound tightening, subtype chains
-│   └── Evolution.lean       — EvolutionStep, EvolutionChain, ArchiveEntry, EvolutionArchive
-├── Proofs/
-│   ├── Stability.lean       — Stable subtypes preserved across evolution chains
-│   ├── BoundTightening.lean — Supertyping preserves behavioral contracts
-│   ├── UpgradeCorrectness.lean — Behavior changes only in intended delta domain
+├── Types/                      — Core type-theoretic foundation
+│   ├── Basic.lean              — Messages, tools, metrics, languages
+│   ├── AgentSpec.lean          — Refinement types: AgentSpec, AgentImpl, StableSubtype
+│   ├── Subtyping.lean          — Behavioral subtyping (LSP), bound tightening
+│   └── Evolution.lean          — EvolutionStep, EvolutionChain, ArchiveEntry
+├── Proofs/                     — Formal verification
+│   ├── Stability.lean          — Stable subtypes preserved across evolution
+│   ├── BoundTightening.lean    — Supertyping preserves behavioral contracts
+│   ├── UpgradeCorrectness.lean — Changes confined to intended delta domain
 │   └── ArchiveMonotonicity.lean — Archive best score never decreases
-├── Agent/
-│   ├── LLM.lean             — LLM client, tool-use protocol, agentic chat loop
-│   ├── CodingAgent.lean     — SWE-bench coding agent (AgenticSystem)
-│   └── PolyglotAgent.lean   — Multi-language agent variant
-├── Tools/
-│   ├── Tool.lean            — Tool typeclass and registry
-│   ├── Bash.lean            — Bash execution with IO monad
-│   └── Edit.lean            — File operations with path validation
-├── Evolution/
-│   ├── Archive.lean         — Verified archive with selection methods
-│   ├── SelfImprove.lean     — Self-improvement pipeline with verification
-│   └── Outer.lean           — Main evolutionary loop
-├── Utils/
-│   ├── Docker.lean          — Docker container management
-│   ├── Git.lean             — Git operations (diff, reset, apply)
-│   ├── Common.lean          — File I/O utilities
-│   ├── EvalUtils.lean       — Evaluation scoring
-│   └── LogParsers.lean      — Test log parsing (pytest, django, cargo, go)
-├── Eval/
-│   ├── SWEBench.lean        — SWE-bench evaluation harness
-│   └── Polyglot.lean        — Polyglot evaluation harness
-├── Prompts/
-│   ├── SelfImprovement.lean — Diagnosis and improvement prompts
-│   ├── DiagnoseImprovement.lean — Before/after comparison prompts
-│   ├── TestRepo.lean        — Test description generation
-│   └── ToolUse.lean         — Tool usage format for non-native LLMs
+├── Agent/                      — Agent and LLM interface
+│   ├── LLM.lean                — Real LLM API calls via curl (Anthropic + OpenAI)
+│   ├── CodingAgent.lean        — SWE-bench coding agent
+│   └── PolyglotAgent.lean      — Multi-language agent variant
+├── Tools/                      — Tool system
+│   ├── Tool.lean               — Tool typeclass and registry
+│   ├── Bash.lean               — Bash execution via IO.Process
+│   └── Edit.lean               — File operations with path validation
+├── Evolution/                  — Evolution engine
+│   ├── Archive.lean            — Verified archive with weighted selection
+│   ├── SelfImprove.lean        — Self-improvement pipeline
+│   └── Outer.lean              — Main loop with Task-based parallelism
+├── Utils/                      — Utilities
+│   ├── Docker.lean             — Docker container management
+│   ├── Git.lean                — Git operations
+│   ├── Common.lean             — File I/O helpers
+│   ├── EvalUtils.lean          — Evaluation scoring
+│   └── LogParsers.lean         — Test log parsing (pytest, cargo, go)
+├── Eval/                       — Evaluation harnesses
+│   ├── SWEBench.lean           — SWE-bench evaluation
+│   └── Polyglot.lean           — Polyglot evaluation
+├── Prompts/                    — Prompt templates
+│   ├── SelfImprovement.lean    — Diagnosis and improvement prompts
+│   ├── DiagnoseImprovement.lean — Before/after comparison
+│   ├── TestRepo.lean           — Test execution instructions
+│   └── ToolUse.lean            — Tool format for non-native LLMs
 └── Analysis/
-    └── Progress.lean        — Progress tracking, CSV/DOT export
+    └── Progress.lean           — Progress tracking, CSV/DOT export
 ```
 
 ### Python (Legacy)
-- `analysis/` scripts used for plotting and analysis
-- `initial/` SWE-bench logs and performance of the initial agent
-- `initial_polyglot/` Polyglot logs and performance of the initial agent
-- `swe_bench/` code needed for SWE-bench evaluation
-- `polyglot/` code needed for Polyglot evaluation
-- `prompts/` prompts used for foundation models
-- `tests/` tests for the DGM system
-- `tools/` tools available to the foundation models
-- `coding_agent.py` main implementation of the initial coding agent
-- `DGM_outer.py` entry point for running the DGM algorithm
+- `DGM_outer.py` — Entry point for the evolution loop
+- `coding_agent.py` — Initial coding agent
+- `self_improve_step.py` — Self-improvement step
+- `llm.py`, `llm_withtools.py` — LLM API calls
+- `tools/` — Bash and edit tools
+- `swe_bench/` — SWE-bench evaluation
+- `polyglot/` — Polyglot evaluation
+
+## Docker
+
+### Build the image
+```bash
+docker build -t dgm .
+```
+
+### Run with API keys
+```bash
+docker run -e OPENAI_API_KEY -e ANTHROPIC_API_KEY dgm \
+  lake exec dgm_main -- --max_generation 10
+```
 
 ## Logs from Experiments
 This [google drive folder](https://drive.google.com/drive/folders/1Kcu9TbIa9Z50pJ7S6hH9omzzD1pxIYZC?usp=sharing) contains all the foundation model output logs from the experiments shown in the paper.

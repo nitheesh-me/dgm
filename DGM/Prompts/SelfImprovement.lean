@@ -76,6 +76,17 @@ def getDiagnosePrompt (entry : String) (evalLogs : List String)
   "Analyze the evaluation logs above and suggest a specific improvement to the coding agent.\n" ++
   "Focus on patterns of failure and provide an actionable implementation suggestion."
 
+/-- Overload: construct the diagnosis prompt given file paths (for SelfImprove pipeline).
+Loads logs and code from disk. -/
+def getDiagnosePrompt (entry commitId rootDir outDir : String)
+    (patchFiles : List String) (polyglot : Bool) : IO String := do
+  let evalLogs ← findEvalLogs entry outDir commitId
+  let currentCode ← getCurrentCode commitId rootDir outDir
+  let patches ← patchFiles.mapM fun f => do
+    let exists ← System.FilePath.pathExists ⟨f⟩
+    if exists then IO.FS.readFile ⟨f⟩ else pure ""
+  return getDiagnosePrompt entry evalLogs currentCode patches
+
 /-- Construct problem description from diagnosis response.
 Ported from `get_problem_description_prompt`. -/
 def getProblemDescriptionPrompt (suggestion : String) (description : String)
@@ -85,6 +96,17 @@ def getProblemDescriptionPrompt (suggestion : String) (description : String)
   s!"## Improvement Description\n\n{description}\n\n" ++
   s!"## Implementation Suggestion\n\n{suggestion}\n\n" ++
   "Please implement this improvement in the coding agent."
+
+/-- Overload: construct problem description from a JSON string response.
+Extracts implementation_suggestion and problem_description from JSON. -/
+def getProblemDescriptionPrompt (jsonResponse : String) (isPolyglot : Bool) : String :=
+  let suggestion := match jsonResponse.splitOn "\"implementation_suggestion\": \"" with
+    | [_, rest] => match rest.splitOn "\"" with | val :: _ => val | _ => jsonResponse
+    | _ => jsonResponse
+  let description := match jsonResponse.splitOn "\"problem_description\": \"" with
+    | [_, rest] => match rest.splitOn "\"" with | val :: _ => val | _ => ""
+    | _ => ""
+  getProblemDescriptionPrompt suggestion description isPolyglot
 
 /-! ## Log Processing -/
 

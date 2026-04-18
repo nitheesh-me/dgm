@@ -8,6 +8,7 @@ Ported from: `utils/evo_utils.py` and archive logic in `DGM_outer.py`
 
 import DGM.Types.Evolution
 import DGM.Types.Basic
+import DGM.Utils.Common
 
 namespace DGM.Evolution
 
@@ -52,26 +53,73 @@ def ConcreteArchive.worstScore (archive : ConcreteArchive) : Float :=
   | [] => 0.0
   | e :: es => es.foldl (fun worst e => if e.score < worst then e.score else worst) e.score
 
-/-! ## Parent Selection -/
+/-! ## Random Sampling -/
+
+/-- Generate a pseudo-random Float in [0, 1) using nanosecond clock.
+Simple but sufficient for selection — not cryptographic. -/
+def randomFloat : IO Float := do
+  let ns ← IO.monoNanosNow
+  -- Use lower bits of nanosecond counter for randomness
+  let r := (ns % 1000000007).toFloat / 1000000007.0
+  return r
+
+/-- Weighted random selection: pick one item from a weighted list.
+Uses cumulative distribution sampling (roulette wheel).
+Ported from `random.choices` in Python. -/
+def weightedRandomChoice (items : List (α × Float)) : IO α := do
+  let totalWeight := items.foldl (fun acc (_, w) => acc + w) 0.0
+  if totalWeight ≤ 0.0 then
+    -- Fallback: return the first item
+    match items with
+    | (a, _) :: _ => return a
+    | [] => throw <| IO.userError "weightedRandomChoice: empty list"
+  let r ← randomFloat
+  let target := r * totalWeight
+  let mut cumulative := 0.0
+  for (item, weight) in items do
+    cumulative := cumulative + weight
+    if cumulative ≥ target then
+      return item
+  -- Fallback: return last item
+  match items.getLast? with
+  | some (a, _) => return a
+  | none => throw <| IO.userError "weightedRandomChoice: empty list"
+
+/-- Select `k` items with replacement from a weighted list. -/
+def weightedRandomChoices (items : List (α × Float)) (k : Nat) : IO (List α) := do
+  let mut results : List α := []
+  for _ in List.range k do
+    let item ← weightedRandomChoice items
+    results := results ++ [item]
+  return results
+
+/-! ## Selection Methods -/
 
 /-- Selection methods for choosing parents.
 Ported from `choose_selfimproves` in `DGM_outer.py`. -/
 
-/-- Score-proportional selection weights. -/
+/-- Sigmoid function for score scaling (matching Python's implementation). -/
+def sigmoid (x : Float) : Float :=
+  1.0 / (1.0 + Float.exp (-(10.0 * (x - 0.5))))
+
+/-- Score-proportional selection weights.
+Applies sigmoid scaling to scores, matching Python:
+`scores = [1 / (1 + math.exp(-10*(score-0.5))) for score in scores]` -/
 def scoreProportionalWeights (entries : List ArchiveMetadata) : List (ArchiveMetadata × Float) :=
-  let scores := entries.map (·.score)
-  let minScore := scores.foldl min 1.0
-  let weights := entries.map fun e => (e, e.score - minScore + 0.01)
-  weights
+  entries.map fun e => (e, sigmoid e.score)
 
 /-- Score-child-proportional selection: favors high-scoring entries with fewer children.
-This is the default selection method in DGM. -/
+This is the default selection method in DGM.
+Matching Python:
+```
+scores = [sigmoid(score) for score in scores]
+children_counts = [1 / (1 + count) for count in children_counts]
+probabilities = [score * count for score, count in zip(scores, children_counts)]
+``` -/
 def scoreChildProportionalWeights (entries : List ArchiveMetadata)
     : List (ArchiveMetadata × Float) :=
-  let scores := entries.map (·.score)
-  let minScore := scores.foldl min 1.0
   entries.map fun e =>
-    let scoreWeight := e.score - minScore + 0.01
+    let scoreWeight := sigmoid e.score
     let childPenalty := 1.0 / (Float.ofNat e.childrenCount + 1.0)
     (e, scoreWeight * childPenalty)
 
@@ -83,22 +131,26 @@ def chooseParents (archive : ConcreteArchive) (count : Nat)
     return []
   match method with
   | .random =>
-    -- Random selection (simplified: just take first `count`)
-    return archive.entries.take count
+    -- Random selection with replacement
+    let uniform := archive.entries.map fun e => (e, 1.0)
+    weightedRandomChoices uniform count
   | .best =>
     -- Best score selection
     let sorted := archive.entries.mergeSort (fun a b => a.score > b.score)
-    return sorted.take count
+    let top := sorted.take (min count sorted.length)
+    -- If not enough, repeat from top
+    if top.length ≥ count then return top.take count
+    let remaining := count - top.length
+    let extras ← weightedRandomChoices (top.map fun e => (e, 1.0)) remaining
+    return top ++ extras
   | .scoreProp =>
-    -- Score-proportional selection
-    let _weights := scoreProportionalWeights archive.entries
-    -- TODO: weighted random sampling
-    return archive.entries.take count
+    -- Score-proportional selection (roulette wheel)
+    let weights := scoreProportionalWeights archive.entries
+    weightedRandomChoices weights count
   | .scoreChildProp =>
-    -- Score-child-proportional selection (default)
-    let _weights := scoreChildProportionalWeights archive.entries
-    -- TODO: weighted random sampling
-    return archive.entries.take count
+    -- Score-child-proportional selection (default method in DGM)
+    let weights := scoreChildProportionalWeights archive.entries
+    weightedRandomChoices weights count
 
 /-! ## Archive Update -/
 
@@ -128,9 +180,26 @@ Ported from `get_model_patch_paths` in `utils/evo_utils.py`.
 
 This recursively follows parent commits to build the full patch chain. -/
 def getModelPatchPaths (rootDir dgmDir parentCommit : String) : IO (List String) := do
-  -- In production: read metadata files and follow parent chain
-  -- Returns list of patch file paths in order [oldest, ..., newest]
-  return []
+  -- Recursively trace parent chain
+  if parentCommit == "initial" then
+    return []
+  let metadataPath := s!"{dgmDir}/{parentCommit}/metadata.json"
+  let exists ← System.FilePath.pathExists ⟨metadataPath⟩
+  if !exists then
+    return []
+  let content ← IO.FS.readFile ⟨metadataPath⟩
+  -- Extract parent_commit from JSON
+  let grandparent := match content.splitOn "\"parent_commit\": \"" with
+    | [_, rest] => match rest.splitOn "\"" with | val :: _ => val | _ => "initial"
+    | _ => "initial"
+  -- Recurse to get full chain
+  let ancestorPatches ← getModelPatchPaths rootDir dgmDir grandparent
+  let patchPath := s!"{dgmDir}/{parentCommit}/model_patch.diff"
+  let patchExists ← System.FilePath.pathExists ⟨patchPath⟩
+  if patchExists then
+    return ancestorPatches ++ [patchPath]
+  else
+    return ancestorPatches
 
 /-! ## Archive Persistence -/
 
@@ -142,15 +211,46 @@ def loadArchive (metadataPath : String) : IO ConcreteArchive := do
     return ConcreteArchive.empty
   let content ← IO.FS.readFile ⟨metadataPath⟩
   let lines := content.splitOn "\n" |>.filter (·.length > 0)
-  -- Parse each JSONL line into ArchiveMetadata
-  -- TODO: proper JSON parsing
-  let _entries := lines.map fun _line => (ArchiveMetadata.mk "" "" "" 0 0.0 false 0)
-  return { entries := [] }
+  -- Parse the last line to get the most recent archive state
+  match lines.getLast? with
+  | none => return ConcreteArchive.empty
+  | some lastLine =>
+    -- Extract archive entries from the line
+    -- The line has format: {"generation": N, "archive": ["id1", "id2", ...], ...}
+    let archiveIds := extractArchiveIds lastLine
+    let entries := archiveIds.map fun id =>
+      { runId := id, parentCommit := "", entry := id, generation := 0,
+        score := 0.0, isCompiled := true, childrenCount := 0 : ArchiveMetadata }
+    return { entries := entries }
+where
+  extractArchiveIds (line : String) : List String :=
+    match line.splitOn "\"archive\": [" with
+    | [_, rest] =>
+      match rest.splitOn "]" with
+      | arrayContent :: _ =>
+        arrayContent.splitOn ","
+          |>.map (·.trim.replace "\"" "")
+          |>.filter (·.length > 0)
+      | _ => []
+    | _ => []
 
-/-- Save archive state to JSONL metadata file. -/
+/-- Save archive state to JSONL metadata file.
+Matches Python format:
+```json
+{"generation": N, "selfimprove_entries": [...], "children": [...], "children_compiled": [...], "archive": [...]}
+``` -/
 def saveArchiveState (metadataPath : String) (generation : Nat)
     (archive : ConcreteArchive) (children : List String) : IO Unit := do
-  let line := s!"\{\"generation\": {generation}, \"archive_size\": {archive.entries.length}, \"children\": {children.length}}"
+  let archiveIds := archive.entries.map (·.runId)
+  let archiveJson := "[" ++ String.intercalate ", " (archiveIds.map fun id => s!"\"{id}\"") ++ "]"
+  let childrenJson := "[" ++ String.intercalate ", " (children.map fun id => s!"\"{id}\"") ++ "]"
+  let line := s!"\{\"generation\": {generation}, \"children\": {childrenJson}, " ++
+    s!"\"children_compiled\": {childrenJson}, \"archive\": {archiveJson}}"
+  -- Ensure parent directory exists
+  let dir := System.FilePath.mk metadataPath |>.parent
+  match dir with
+  | some d => IO.FS.createDirAll d
+  | none => pure ()
   IO.FS.Handle.mk ⟨metadataPath⟩ .append >>= fun h =>
     h.putStrLn line
 

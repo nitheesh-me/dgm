@@ -12,6 +12,8 @@ import DGM.Agent.LLM
 import DGM.Evolution.Archive
 import DGM.Utils.Docker
 import DGM.Utils.Git
+import DGM.Utils.Common
+import DGM.Prompts.SelfImprovement
 
 namespace DGM.Evolution
 
@@ -61,20 +63,49 @@ structure DiagnosisResult where
   deriving Repr, Inhabited
 
 /-- Diagnose problems in the current agent by analyzing evaluation logs.
-Ported from `diagnose_problem` in `self_improve_step.py`. -/
+Ported from `diagnose_problem` in `self_improve_step.py`.
+Uses O1 model to analyze logs and generate a problem statement. -/
 def diagnoseProblem (entry parentCommit : String) (rootDir outDir : String)
     (patchFiles : List String) (maxAttempts : Nat := 5)
     (polyglot : Bool := false) : IO (Option DiagnosisResult) := do
   -- 1. Find evaluation logs for the parent
-  -- 2. Process logs to identify failure patterns
-  -- 3. Use LLM to diagnose the root cause
-  -- 4. Generate a problem statement for improvement
-  let _logDir := s!"{outDir}/{parentCommit}"
-  -- TODO: Implement log finding and processing
+  let logDir := s!"{outDir}/{parentCommit}"
+  let logExists ← System.FilePath.pathExists ⟨logDir⟩
+  if !logExists then
+    IO.eprintln s!"[Diagnose] No logs found at {logDir}"
+    return some {
+      problemStatement := s!"Improve the coding agent based on evaluation of {entry}"
+      suggestion := "Analyze failure patterns and improve the agent's approach"
+      rawResponse := ""
+    }
+
+  -- 2. Build diagnosis prompt using log files
+  let sysMsg := DGM.Prompts.SelfImprovement.diagnoseSystemMessage
+  let prompt ← DGM.Prompts.SelfImprovement.getDiagnosePrompt
+    entry parentCommit rootDir outDir patchFiles polyglot
+
+  -- 3. Call LLM to diagnose
+  let client ← createClient "o1-2024-12-17"
+  let messages : List Message := [{
+    role := .user
+    blocks := [{ blockType := .text, text := some prompt }]
+  }]
+
+  let response ← callLLMWithRetry client messages sysMsg
+  let responseText := response.content
+
+  -- 4. Extract JSON from response and build problem statement
+  let jsonOpt := extractJsonBetweenMarkers responseText
+  let problemStatement := match jsonOpt with
+    | some json =>
+      DGM.Prompts.SelfImprovement.getProblemDescriptionPrompt json polyglot
+    | none =>
+      s!"Improve the coding agent based on evaluation of {entry}.\n\nDiagnosis: {responseText}"
+
   return some {
-    problemStatement := s!"Improve the coding agent based on evaluation of {entry}"
-    suggestion := "Analyze failure patterns and improve the agent's approach"
-    rawResponse := ""
+    problemStatement := problemStatement
+    suggestion := responseText
+    rawResponse := responseText
   }
 
 /-- Diagnose whether an improvement actually helped.
@@ -93,8 +124,47 @@ structure ImprovementDiagnosis where
 def diagnoseImprovement (entry parentCommit : String) (rootDir : String)
     (modelPatchFile outDir runId : String) (patchFiles : List String)
     (maxAttempts : Nat := 5) : IO (Option ImprovementDiagnosis) := do
-  -- TODO: Compare before/after performance
-  return none
+  -- Read the model patch
+  let patchExists ← System.FilePath.pathExists ⟨modelPatchFile⟩
+  if !patchExists then return none
+
+  let _patch ← IO.FS.readFile ⟨modelPatchFile⟩
+
+  -- Build diagnosis prompt
+  let client ← createClient "o1-2024-12-17"
+  let prompt := DGM.Prompts.DiagnoseImprovement.diagnoseImprovementUserPrompt
+    entry parentCommit runId outDir
+  let sysMsg := DGM.Prompts.DiagnoseImprovement.diagnoseImprovementSystemMessage
+  let messages : List Message := [{
+    role := .user
+    blocks := [{ blockType := .text, text := some prompt }]
+  }]
+
+  let response ← callLLMWithRetry client messages sysMsg
+  let responseText := response.content
+
+  -- Parse the diagnosis
+  let jsonOpt := extractJsonBetweenMarkers responseText
+  match jsonOpt with
+  | some json =>
+    -- Extract fields from JSON
+    let impact := extractJsonField json "impact"
+    let scoreStr := extractJsonField json "score"
+    let score := scoreStr.toInt?.getD 0
+    return some {
+      impact := impact
+      improvements := [extractJsonField json "improvements"]
+      regressions := [extractJsonField json "regressions"]
+      score := score
+    }
+  | none => return none
+where
+  extractJsonField (json field : String) : String :=
+    match json.splitOn s!"\"{field}\": \"" with
+    | [_, rest] => match rest.splitOn "\"" with | val :: _ => val | _ => ""
+    | _ => match json.splitOn s!"\"{field}\":" with
+      | [_, rest] => rest.trim.takeWhile (· != ',') |>.takeWhile (· != '}') |>.trim
+      | _ => ""
 
 /-! ## Self-Improvement Result -/
 
@@ -140,25 +210,37 @@ def SelfImproveResult.toArchiveMetadata (result : SelfImproveResult) (gen : Nat)
 This is the main function ported from `self_improve` in `self_improve_step.py`.
 The pipeline:
 1. Set up Docker container with DGM codebase
-2. Diagnose problems from evaluation logs
-3. Run the coding agent inside the container to generate improvements
-4. Extract the model patch
-5. Evaluate on the benchmark
-6. Optionally diagnose the improvement's impact
+2. Apply patch chain from ancestors
+3. Diagnose problems from evaluation logs
+4. Run the coding agent inside the container to generate improvements
+5. Extract the model patch
+6. Evaluate on the benchmark
+7. Optionally diagnose the improvement's impact
 
 Returns the result with metadata and optional verification. -/
 def selfImprove (config : SelfImproveConfig) : IO SelfImproveResult := do
   -- Generate unique run ID
   let runId ← generateRunId
+  let runDir := s!"{config.outputDir}/{runId}"
+  IO.FS.createDirAll ⟨runDir⟩
+  IO.println s!"[SelfImprove] Starting run {runId} (parent: {config.parentCommit})"
 
   -- Step 1: Set up Docker container
-  let _container ← DGM.Utils.Docker.buildContainer "dgm" s!"dgm-{runId}"
+  let containerName := s!"dgm-{runId}"
+  IO.println s!"[SelfImprove] Building container {containerName}..."
+  let container ← DGM.Utils.Docker.buildContainer "dgm" containerName
     config.forceRebuild
 
-  -- Step 2: Get patch chain from parent
+  -- Step 2: Get patch chain from parent and apply patches
   let patchFiles ← getModelPatchPaths "." config.outputDir config.parentCommit
+  IO.println s!"[SelfImprove] Applying {patchFiles.length} ancestor patches..."
+  for patchFile in patchFiles do
+    DGM.Utils.Docker.copyToContainer container patchFile "/dgm/patch.diff"
+    let _ ← DGM.Utils.Docker.execInContainer container
+      "bash" #["-c", "cd /dgm && git apply --reject patch.diff || true"]
 
   -- Step 3: Diagnose problems
+  IO.println s!"[SelfImprove] Diagnosing problems for entry: {config.entry}..."
   let diagnosis ← diagnoseProblem config.entry config.parentCommit
     "." config.outputDir patchFiles 5 config.polyglot
 
@@ -166,30 +248,46 @@ def selfImprove (config : SelfImproveConfig) : IO SelfImproveResult := do
     | some d => d.problemStatement
     | none   => "Improve the coding agent's performance"
 
+  -- Save problem statement
+  DGM.Utils.Common.writeFile s!"{runDir}/problem_statement.txt" problemStatement
+
   -- Step 4: Run coding agent inside container
-  -- In production: docker exec + coding_agent.py
-  let modelPatchExists := false
-  let modelPatchNotEmpty := false
+  IO.println s!"[SelfImprove] Running coding agent..."
+  let agentExitCode ← DGM.Utils.Docker.execInContainer container
+    "bash" #["-c",
+      s!"cd /dgm && python coding_agent.py " ++
+      s!"--problem \"{DGM.Agent.jsonEscape problemStatement}\" " ++
+      s!"--entry {config.entry} " ++
+      s!"--output {runDir}"]
+  IO.println s!"[SelfImprove] Agent exit code: {agentExitCode.stdout.trim}"
 
-  -- Step 5: Evaluate on benchmark
-  let performance : OverallPerformance := {
-    accuracyScore := 0.0
-    totalResolvedInstances := 0
-    totalSubmittedInstances := 0
-    totalUnresolvedIds := []
-    totalResolvedIds := []
-    totalEmptyPatchIds := []
-  }
+  -- Step 5: Extract the model patch
+  let modelPatchPath := s!"{runDir}/model_patch.diff"
+  DGM.Utils.Docker.copyFromContainer container "/dgm/model_patch.diff" modelPatchPath
+  let modelPatchExists ← System.FilePath.pathExists ⟨modelPatchPath⟩
+  let modelPatchNotEmpty ← if modelPatchExists then do
+    let content ← IO.FS.readFile ⟨modelPatchPath⟩
+    pure (content.trim.length > 0)
+  else pure false
+  IO.println s!"[SelfImprove] Patch: exists={modelPatchExists}, non-empty={modelPatchNotEmpty}"
 
-  -- Step 6: Diagnose improvement (optional)
-  let improveDiag ← if config.postImproveDiagnose then
+  -- Step 6: Evaluate on benchmark
+  IO.println s!"[SelfImprove] Evaluating on benchmark..."
+  let performance ← evaluateAgent config runDir modelPatchPath
+
+  -- Step 7: Diagnose improvement (optional)
+  let improveDiag ← if config.postImproveDiagnose && modelPatchNotEmpty then do
+    IO.println s!"[SelfImprove] Diagnosing improvement..."
     diagnoseImprovement config.entry config.parentCommit "."
-      s!"{config.outputDir}/{runId}/model_patch.diff"
-      config.outputDir runId patchFiles
+      modelPatchPath config.outputDir runId patchFiles
   else
     pure none
 
-  return {
+  -- Cleanup container
+  DGM.Utils.Docker.cleanupContainer container
+
+  -- Save metadata
+  let result := {
     runId := runId
     parentCommit := config.parentCommit
     entry := config.entry
@@ -200,12 +298,80 @@ def selfImprove (config : SelfImproveConfig) : IO SelfImproveResult := do
     overallPerformance := performance
     isCompiled := modelPatchExists && modelPatchNotEmpty
     improvementDiagnosis := improveDiag
+    : SelfImproveResult
   }
+  saveMetadata runDir result
+  IO.println s!"[SelfImprove] Run {runId} complete: score={performance.accuracyScore}"
+
+  return result
 where
   /-- Generate a unique run ID based on timestamp. -/
   generateRunId : IO String := do
-    -- Simple timestamp-based ID
-    return s!"run_{← IO.monoNanosNow}"
+    let ns ← IO.monoNanosNow
+    return s!"run_{ns}"
+
+  /-- Evaluate the agent on the configured benchmark. -/
+  evaluateAgent (config : SelfImproveConfig) (runDir modelPatchPath : String)
+      : IO OverallPerformance := do
+    -- Run evaluation via Python harness (SWE-bench or Polyglot)
+    let harnessCmd := if config.polyglot then
+      s!"python -m polyglot.harness --patch {modelPatchPath} --output {runDir}/eval"
+    else
+      s!"python -m swe_bench.harness --patch {modelPatchPath} --output {runDir}/eval"
+    let result ← IO.Process.output {
+      cmd := "bash"
+      args := #["-c", harnessCmd]
+    }
+    if result.exitCode != 0 then
+      IO.eprintln s!"[Eval] Harness failed: {result.stderr.take 500}"
+    -- Parse evaluation results
+    let evalResultPath := s!"{runDir}/eval/results.json"
+    let evalExists ← System.FilePath.pathExists ⟨evalResultPath⟩
+    if evalExists then
+      let content ← IO.FS.readFile ⟨evalResultPath⟩
+      parseEvalResults content
+    else
+      return {
+        accuracyScore := 0.0
+        totalResolvedInstances := 0
+        totalSubmittedInstances := 0
+        totalUnresolvedIds := []
+        totalResolvedIds := []
+        totalEmptyPatchIds := []
+      }
+
+  /-- Parse evaluation results from JSON. -/
+  parseEvalResults (json : String) : IO OverallPerformance := do
+    let score := match json.splitOn "\"accuracy_score\":" with
+      | [_, rest] =>
+        let numStr := rest.trim.takeWhile (fun c => c.isDigit || c == '.' || c == '-')
+        -- Simple float parsing
+        match numStr.toNat? with
+        | some n => Float.ofNat n / 100.0
+        | none => 0.0
+      | _ => 0.0
+    return {
+      accuracyScore := score
+      totalResolvedInstances := 0
+      totalSubmittedInstances := 0
+      totalUnresolvedIds := []
+      totalResolvedIds := []
+      totalEmptyPatchIds := []
+    }
+
+  /-- Save run metadata to JSON. -/
+  saveMetadata (runDir : String) (result : SelfImproveResult) : IO Unit := do
+    let json := s!"\{\"run_id\": \"{result.runId}\", " ++
+      s!"\"parent_commit\": \"{result.parentCommit}\", " ++
+      s!"\"entry\": \"{result.entry}\", " ++
+      s!"\"model_patch_exists\": {result.modelPatchExists}, " ++
+      s!"\"model_patch_not_empty\": {result.modelPatchNotEmpty}, " ++
+      s!"\"is_compiled\": {result.isCompiled}, " ++
+      s!"\"overall_performance\": \{" ++
+      s!"\"accuracy_score\": {result.overallPerformance.accuracyScore}, " ++
+      s!"\"total_resolved_instances\": {result.overallPerformance.totalResolvedInstances}, " ++
+      s!"\"total_submitted_instances\": {result.overallPerformance.totalSubmittedInstances}}}"
+    DGM.Utils.Common.writeFile s!"{runDir}/metadata.json" json
 
 /-! ## Compilation Filtering -/
 
