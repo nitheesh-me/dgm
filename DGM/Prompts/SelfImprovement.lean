@@ -56,9 +56,9 @@ def diagnoseSystemMessage : String :=
 
 /-! ## Prompt Construction -/
 
-/-- Construct the diagnosis prompt with evaluation logs.
+/-- Construct the diagnosis prompt with evaluation logs (pure version).
 Ported from `get_diagnose_prompt_swe`. -/
-def getDiagnosePrompt (entry : String) (evalLogs : List String)
+def buildDiagnosePrompt (entry : String) (evalLogs : List String)
     (currentCode : String) (patches : List String) : String :=
   let logsSection := if evalLogs.isEmpty then
     "No evaluation logs available."
@@ -76,7 +76,7 @@ def getDiagnosePrompt (entry : String) (evalLogs : List String)
   "Analyze the evaluation logs above and suggest a specific improvement to the coding agent.\n" ++
   "Focus on patterns of failure and provide an actionable implementation suggestion."
 
-/-- Overload: construct the diagnosis prompt given file paths (for SelfImprove pipeline).
+/-- Construct the diagnosis prompt given file paths (for SelfImprove pipeline).
 Loads logs and code from disk. -/
 def getDiagnosePrompt (entry commitId rootDir outDir : String)
     (patchFiles : List String) (polyglot : Bool) : IO String := do
@@ -85,11 +85,11 @@ def getDiagnosePrompt (entry commitId rootDir outDir : String)
   let patches ← patchFiles.mapM fun f => do
     let exists ← System.FilePath.pathExists ⟨f⟩
     if exists then IO.FS.readFile ⟨f⟩ else pure ""
-  return getDiagnosePrompt entry evalLogs currentCode patches
+  return buildDiagnosePrompt entry evalLogs currentCode patches
 
-/-- Construct problem description from diagnosis response.
+/-- Construct problem description from diagnosis response (pure version).
 Ported from `get_problem_description_prompt`. -/
-def getProblemDescriptionPrompt (suggestion : String) (description : String)
+def buildProblemDescriptionPrompt (suggestion : String) (description : String)
     (isPolyglot : Bool) : String :=
   let agentSummary := if isPolyglot then codingAgentSummaryPolyglot else codingAgentSummary
   s!"## Agent Architecture\n\n{agentSummary}\n\n" ++
@@ -97,7 +97,7 @@ def getProblemDescriptionPrompt (suggestion : String) (description : String)
   s!"## Implementation Suggestion\n\n{suggestion}\n\n" ++
   "Please implement this improvement in the coding agent."
 
-/-- Overload: construct problem description from a JSON string response.
+/-- Construct problem description from a JSON string response.
 Extracts implementation_suggestion and problem_description from JSON. -/
 def getProblemDescriptionPrompt (jsonResponse : String) (isPolyglot : Bool) : String :=
   let suggestion := match jsonResponse.splitOn "\"implementation_suggestion\": \"" with
@@ -106,7 +106,7 @@ def getProblemDescriptionPrompt (jsonResponse : String) (isPolyglot : Bool) : St
   let description := match jsonResponse.splitOn "\"problem_description\": \"" with
     | [_, rest] => match rest.splitOn "\"" with | val :: _ => val | _ => ""
     | _ => ""
-  getProblemDescriptionPrompt suggestion description isPolyglot
+  buildProblemDescriptionPrompt suggestion description isPolyglot
 
 /-! ## Log Processing -/
 

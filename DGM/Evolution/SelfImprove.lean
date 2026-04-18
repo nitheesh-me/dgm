@@ -237,7 +237,7 @@ def selfImprove (config : SelfImproveConfig) : IO SelfImproveResult := do
   for patchFile in patchFiles do
     DGM.Utils.Docker.copyToContainer container patchFile "/dgm/patch.diff"
     let _ ← DGM.Utils.Docker.execInContainer container
-      "bash" #["-c", "cd /dgm && git apply --reject patch.diff || true"]
+      "cd /dgm && git apply --reject patch.diff || true"
 
   -- Step 3: Diagnose problems
   IO.println s!"[SelfImprove] Diagnosing problems for entry: {config.entry}..."
@@ -253,13 +253,13 @@ def selfImprove (config : SelfImproveConfig) : IO SelfImproveResult := do
 
   -- Step 4: Run coding agent inside container
   IO.println s!"[SelfImprove] Running coding agent..."
-  let agentExitCode ← DGM.Utils.Docker.execInContainer container
-    "bash" #["-c",
-      s!"cd /dgm && python coding_agent.py " ++
-      s!"--problem \"{DGM.Agent.jsonEscape problemStatement}\" " ++
-      s!"--entry {config.entry} " ++
-      s!"--output {runDir}"]
-  IO.println s!"[SelfImprove] Agent exit code: {agentExitCode.stdout.trim}"
+  let agentCmd :=
+    s!"cd /dgm && python coding_agent.py " ++
+    s!"--problem \"{DGM.Agent.jsonEscape problemStatement}\" " ++
+    s!"--entry {config.entry} " ++
+    s!"--output {runDir}"
+  let agentOutput ← DGM.Utils.Docker.execInContainer container agentCmd
+  IO.println s!"[SelfImprove] Agent output: {agentOutput.take 200}"
 
   -- Step 5: Extract the model patch
   let modelPatchPath := s!"{runDir}/model_patch.diff"

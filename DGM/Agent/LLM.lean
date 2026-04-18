@@ -115,7 +115,7 @@ def jsonEscape (s : String) : String :=
     | '\t' => acc ++ "\\t"
     | '\r' => acc ++ "\\r"
     | c    =>
-      if c.toNat < 32 then acc ++ s!"\\u{String.mk (Nat.toDigits 16 c.toNat |>.map Char.ofNat)}"
+      if c.toNat < 32 then acc  -- Skip other control characters
       else acc.push c
   ) ""
 

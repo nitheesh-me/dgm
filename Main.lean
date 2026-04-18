@@ -71,10 +71,10 @@ def main (args : List String) : IO Unit := do
 
   -- Parse CLI arguments (mirrors Python argparse in DGM_outer.py)
   let selectionMethod := match parseFlag args "--choose_method" with
-    | some "random"          => DGM.Evolution.SelectionMethod.random
-    | some "best"            => DGM.Evolution.SelectionMethod.best
-    | some "score_prop"      => DGM.Evolution.SelectionMethod.scoreProp
-    | some "score_child_prop" | _ => DGM.Evolution.SelectionMethod.scoreChildProp
+    | some "random"          => DGM.Types.SelectionMethod.random
+    | some "best"            => DGM.Types.SelectionMethod.best
+    | some "score_prop"      => DGM.Types.SelectionMethod.scoreProp
+    | some "score_child_prop" | _ => DGM.Types.SelectionMethod.scoreChildProp
 
   let config : DGM.Evolution.Outer.DGMConfig := {
     maxGenerations    := parseFlagNat args "--max_generation" 80
