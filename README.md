@@ -21,24 +21,46 @@ Repository for **Darwin Gödel Machine (DGM)**, a novel self-improving system th
 </p> -->
 
 
-## Setup
+## Lean 4 Implementation (Verified Self-Evolution)
+
+This repository includes a **Lean 4** implementation with formal verification of self-evolution properties. The Lean 4 version uses refinement types to identify stable subtypes during upgrades, ensuring behavior changes only for intended improvements.
+
+### Key Verification Properties
+- **Stable Subtype Preservation**: Behavior on the stable domain is invariant across upgrades
+- **Upgrade Correctness**: Changes are confined to the intended delta domain
+- **Bound Tightening**: Supertyping preserves behavioral contracts
+- **Archive Monotonicity**: The archive's best score never decreases
+
+### Setup (Lean 4)
 ```bash
-# API keys, add to ~/.bashrc
+# Install elan (Lean 4 version manager)
+curl -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh
+
+# The lean-toolchain file specifies Lean 4 v4.29.0
+# Build the project
+lake build
+
+# Run the executable
+lake exec dgm_main
+```
+
+```bash
+# API keys (still needed for LLM calls)
 export OPENAI_API_KEY='...'
 export ANTHROPIC_API_KEY='...'
 ```
 
 ```bash
-# Verify that Docker is properly configured in your environment.
+# Docker setup (still needed for agent evaluation)
 docker run hello-world
- 
-# If a permission error occurs, add the user to the Docker group
+
+# If a permission error occurs
 sudo usermod -aG docker $USER
 newgrp docker
 ```
 
+### Setup (Python — Legacy)
 ```bash
-# Install dependencies
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
@@ -58,17 +80,68 @@ pip install -e .
 cd ../../
 
 # Prepare Polyglot
-# Make sure git is properly configured in your environment with username and email
 python -m polyglot.prepare_polyglot_dataset
 ```
 
 ## Running the DGM
+
+### Lean 4 (Verified)
+```bash
+lake build && lake exec dgm_main
+```
+
+### Python (Legacy)
 ```bash
 python DGM_outer.py
 ```
 By default, outputs will be saved in the `output_dgm/` directory.
 
 ## File Structure
+
+### Lean 4 (Verified Implementation)
+```
+DGM/
+├── Types/
+│   ├── Basic.lean          — Core types (messages, tools, metrics, languages)
+│   ├── AgentSpec.lean       — Refinement types: AgentSpec, AgentImpl, StableSubtype, UpgradeDelta
+│   ├── Subtyping.lean       — Behavioral subtyping (LSP), bound tightening, subtype chains
+│   └── Evolution.lean       — EvolutionStep, EvolutionChain, ArchiveEntry, EvolutionArchive
+├── Proofs/
+│   ├── Stability.lean       — Stable subtypes preserved across evolution chains
+│   ├── BoundTightening.lean — Supertyping preserves behavioral contracts
+│   ├── UpgradeCorrectness.lean — Behavior changes only in intended delta domain
+│   └── ArchiveMonotonicity.lean — Archive best score never decreases
+├── Agent/
+│   ├── LLM.lean             — LLM client, tool-use protocol, agentic chat loop
+│   ├── CodingAgent.lean     — SWE-bench coding agent (AgenticSystem)
+│   └── PolyglotAgent.lean   — Multi-language agent variant
+├── Tools/
+│   ├── Tool.lean            — Tool typeclass and registry
+│   ├── Bash.lean            — Bash execution with IO monad
+│   └── Edit.lean            — File operations with path validation
+├── Evolution/
+│   ├── Archive.lean         — Verified archive with selection methods
+│   ├── SelfImprove.lean     — Self-improvement pipeline with verification
+│   └── Outer.lean           — Main evolutionary loop
+├── Utils/
+│   ├── Docker.lean          — Docker container management
+│   ├── Git.lean             — Git operations (diff, reset, apply)
+│   ├── Common.lean          — File I/O utilities
+│   ├── EvalUtils.lean       — Evaluation scoring
+│   └── LogParsers.lean      — Test log parsing (pytest, django, cargo, go)
+├── Eval/
+│   ├── SWEBench.lean        — SWE-bench evaluation harness
+│   └── Polyglot.lean        — Polyglot evaluation harness
+├── Prompts/
+│   ├── SelfImprovement.lean — Diagnosis and improvement prompts
+│   ├── DiagnoseImprovement.lean — Before/after comparison prompts
+│   ├── TestRepo.lean        — Test description generation
+│   └── ToolUse.lean         — Tool usage format for non-native LLMs
+└── Analysis/
+    └── Progress.lean        — Progress tracking, CSV/DOT export
+```
+
+### Python (Legacy)
 - `analysis/` scripts used for plotting and analysis
 - `initial/` SWE-bench logs and performance of the initial agent
 - `initial_polyglot/` Polyglot logs and performance of the initial agent
