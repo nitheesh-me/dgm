@@ -206,9 +206,9 @@ def runGeneration (config : DGMConfig) (archive : ConcreteArchive)
   let newEntries := compiled.map (·.toArchiveMetadata generation)
   let newArchive := updateArchive archive newEntries config.noiseLeeway config.updateArchive
 
-  -- Save generation state
+  -- Save generation state (all children vs compiled-only, matching Python format)
   saveArchiveState s!"{config.outputDir}/dgm_metadata.jsonl"
-    generation newArchive (compiled.map (·.runId))
+    generation newArchive (results.map (·.runId)) (compiled.map (·.runId))
 
   return {
     archive := newArchive
