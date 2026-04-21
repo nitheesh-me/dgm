@@ -99,6 +99,11 @@ def initializeRun (config : DGMConfig) : IO (ConcreteArchive × Nat) := do
 
 /-! ## Full Evaluation Threshold -/
 
+/-- Sentinel value for disabling the full-evaluation threshold.
+A run whose score exceeds this value will never trigger full eval,
+effectively disabling the full-evaluation gate. -/
+def fullEvalDisabled : Float := 1000000.0
+
 /-- Determine the threshold for triggering full evaluation.
 Ported from `get_full_eval_threshold` in `DGM_outer.py`. -/
 def getFullEvalThreshold (archive : ConcreteArchive) : Float :=
@@ -184,7 +189,7 @@ def runGeneration (config : DGMConfig) (archive : ConcreteArchive)
     postImproveDiagnose := config.postImproveDiagnose
     entry := parent.entry
     testTaskList := testTaskList
-    fullEvalThreshold := if config.noFullEval then 1000000.0 else getFullEvalThreshold archive
+    fullEvalThreshold := if config.noFullEval then fullEvalDisabled else getFullEvalThreshold archive
     runBaseline := config.runBaseline
     shallowEval := config.shallowEval
     polyglot := config.polyglot

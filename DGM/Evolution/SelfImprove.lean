@@ -42,7 +42,7 @@ structure SelfImproveConfig where
   testTaskListMore : List String := []
   /-- Score threshold for extended evaluation. -/
   testMoreThreshold : Float := 0.4
-  /-- Threshold for full evaluation (use Float.infinity to disable). -/
+  /-- Threshold for full evaluation (use DGM.Evolution.Outer.fullEvalDisabled to disable). -/
   fullEvalThreshold : Float := 0.6
   /-- Baseline to run: none | "no_selfimprove" | "no_darwin". -/
   runBaseline : Option String := none
