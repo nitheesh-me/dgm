@@ -235,7 +235,7 @@ def runEvolutionLoop (config : DGMConfig) : IO ConcreteArchive := do
   IO.println s!"[DGM] Best initial score: {initialArchive.bestScore}"
 
   -- Main evolution loop
-  let separator := String.mk (List.replicate 50 '=')
+  let separator := String.ofList (List.replicate 50 '=')
   let mut archive := initialArchive
   for gen in List.range (config.maxGenerations - startGen) do
     let genNum := startGen + gen
@@ -268,11 +268,11 @@ where
     if pathExists then
       let content ← IO.FS.readFile ⟨smallPath⟩
       -- Simple JSON array parsing: extract strings from ["id1", "id2", ...]
-      let inner := (content.trim
+      let inner := (content.trimAscii
         |>.dropWhile (· == '[')
         |>.takeWhile (· != ']')).toString
       return inner.splitOn ","
-        |>.map (fun s => (s.trim.replace "\"" ""))
+        |>.map (fun s => (s.trimAscii.toString.replace "\"" ""))
         |>.filter (·.length > 0)
     else
       IO.eprintln s!"[DGM] Warning: Test task list not found at {smallPath}"

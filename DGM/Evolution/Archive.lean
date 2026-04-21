@@ -239,7 +239,7 @@ where
       match rest.splitOn "]" with
       | arrayContent :: _ =>
         arrayContent.splitOn ","
-          |>.map (·.trim.replace "\"" "")
+          |>.map (·.trimAscii.toString.replace "\"" "")
           |>.filter (·.length > 0)
       | _ => []
     | _ => []

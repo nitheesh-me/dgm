@@ -10,7 +10,7 @@ namespace DGM.Utils.Common
 Ported from `read_file` in `utils/common_utils.py`. -/
 def readFile (filePath : String) : IO String := do
   let content ← IO.FS.readFile ⟨filePath⟩
-  return content.trim
+  return content.trimAscii.toString
 
 /-- Load and parse a JSON file.
 Ported from `load_json_file` in `utils/common_utils.py`.

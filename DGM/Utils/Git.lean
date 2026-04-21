@@ -20,7 +20,7 @@ def getCommitHash (repoPath : String := ".") : IO String := do
   }
   if result.exitCode != 0 then
     throw <| IO.userError s!"git rev-parse failed: {result.stderr}"
-  return result.stdout.trim
+  return result.stdout.trimAscii.toString
 
 /-- Get the diff between current state and a commit.
 Ported from `diff_versus_commit`.

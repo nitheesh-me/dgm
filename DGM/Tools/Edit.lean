@@ -33,7 +33,7 @@ structure ValidPath where
   isAbsolute : path.startsWith "/" = true
 
 /-- Validate that a path is absolute. -/
-def validatePath (path : String) (command : EditCommand) : IO ValidPath := do
+def validatePath (path : String) (_command : EditCommand) : IO ValidPath := do
   if h : path.startsWith "/" then
     return ⟨path, h⟩
   else

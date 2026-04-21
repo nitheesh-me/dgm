@@ -17,7 +17,7 @@ Ported from `parse_log_pytest` in `utils/swe_log_parsers.py`. -/
 def parseLogPytest (log : String) : List (String × TestStatus) :=
   let lines := log.splitOn "\n"
   lines.filterMap fun line =>
-    let trimmed := line.trim
+    let trimmed := line.trimAscii.toString
     if trimmed.containsSubstr "PASSED" then
       some (extractTestName trimmed, TestStatus.passed)
     else if trimmed.containsSubstr "FAILED" then
@@ -50,7 +50,7 @@ Ported from `parse_log_django` in `utils/swe_log_parsers.py`. -/
 def parseLogDjango (log : String) : List (String × TestStatus) :=
   let lines := log.splitOn "\n"
   lines.filterMap fun line =>
-    let trimmed := line.trim
+    let trimmed := line.trimAscii.toString
     if trimmed.containsSubstr "... ok" then
       some (trimmed.splitOn " " |>.head?.getD trimmed, TestStatus.passed)
     else if trimmed.containsSubstr "... FAIL" then
@@ -66,7 +66,7 @@ def parseLogDjango (log : String) : List (String × TestStatus) :=
 def parseLogCargo (log : String) : List (String × TestStatus) :=
   let lines := log.splitOn "\n"
   lines.filterMap fun line =>
-    let trimmed := line.trim
+    let trimmed := line.trimAscii.toString
     if trimmed.containsSubstr "... ok" then
       let name := trimmed.splitOn " " |>.head?.getD trimmed
       some (name, TestStatus.passed)
@@ -80,13 +80,13 @@ def parseLogCargo (log : String) : List (String × TestStatus) :=
 def parseLogGoTest (log : String) : List (String × TestStatus) :=
   let lines := log.splitOn "\n"
   lines.filterMap fun line =>
-    let trimmed := line.trim
+    let trimmed := line.trimAscii.toString
     if trimmed.startsWith "--- PASS:" then
-      some ((trimmed.drop 10).toString.trim, TestStatus.passed)
+      some ((trimmed.drop 10).toString.trimAscii.toString, TestStatus.passed)
     else if trimmed.startsWith "--- FAIL:" then
-      some ((trimmed.drop 10).toString.trim, TestStatus.failed)
+      some ((trimmed.drop 10).toString.trimAscii.toString, TestStatus.failed)
     else if trimmed.startsWith "--- SKIP:" then
-      some ((trimmed.drop 10).toString.trim, TestStatus.skipped)
+      some ((trimmed.drop 10).toString.trimAscii.toString, TestStatus.skipped)
     else
       none
 

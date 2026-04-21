@@ -425,7 +425,7 @@ where
     match content.splitOn "<tool_use>" with
     | [_, rest] =>
       match rest.splitOn "</tool_use>" with
-      | [toolJson, _] => some { id := "manual", name := "unknown", input := toolJson.trim }
+      | [toolJson, _] => some { id := "manual", name := "unknown", input := toolJson.trimAscii.toString }
       | _ => none
     | _ => none
 
@@ -511,7 +511,7 @@ def extractJsonBetweenMarkers (text : String) : Option String :=
   match text.splitOn "```json" with
   | [_, rest] =>
     match rest.splitOn "```" with
-    | jsonStr :: _ => some jsonStr.trim
+    | jsonStr :: _ => some jsonStr.trimAscii.toString
     | _ => none
   | _ =>
     -- Fallback: find first { ... } in text

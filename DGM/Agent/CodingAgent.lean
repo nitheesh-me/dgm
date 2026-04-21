@@ -146,7 +146,7 @@ def CodingAgent.getRegressionTests (agent : CodingAgent) (edits : String) : IO S
 
 /-- Run regression tests and return the report.
 Ported from `AgenticSystem.run_regression_tests`. -/
-def CodingAgent.runRegressionTests (agent : CodingAgent) (testSummary : String)
+def CodingAgent.runRegressionTests (agent : CodingAgent) (_testSummary : String)
     : IO (List (String × TestStatus)) := do
   -- Execute tests via bash tool
   let result ← DGM.Tools.executeBash s!"cd {agent.config.gitTempDir} && pytest -rA --tb=short"

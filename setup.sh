@@ -51,16 +51,45 @@ export PATH="$HOME/.elan/bin:$PATH"
 # ── 2. Verify lean-toolchain ──────────────────────────────────────────────────
 info "Checking lean-toolchain..."
 if [ -f lean-toolchain ]; then
-    TOOLCHAIN=$(cat lean-toolchain | head -1)
+    TOOLCHAIN=$(head -1 lean-toolchain)
     ok "Toolchain: $TOOLCHAIN"
 else
     fail "lean-toolchain file not found!"
     exit 1
 fi
 
+# ── 2a. Pre-download toolchain if elan can't resolve it ─────────────────────
+TOOLCHAIN_VER="v4.29.0"
+TOOLCHAIN_DIR_NAME="leanprover-lean4-$TOOLCHAIN_VER"
+if command -v elan &> /dev/null; then
+    if ! elan toolchain list 2>/dev/null | grep -q "$TOOLCHAIN_DIR_NAME" && \
+       [ ! -d "$HOME/.elan/toolchains/$TOOLCHAIN_DIR_NAME" ]; then
+        info "Toolchain not installed locally. Downloading directly from GitHub..."
+        ARCH=$(uname -m)
+        if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
+            ASSET="lean-4.29.0-linux_aarch64.tar.zst"
+        else
+            ASSET="lean-4.29.0-linux.tar.zst"
+        fi
+        TMPFILE=$(mktemp /tmp/lean-toolchain-XXXXXX.tar.zst)
+        curl --progress-bar -L \
+            "https://github.com/leanprover/lean4/releases/download/$TOOLCHAIN_VER/$ASSET" \
+            -o "$TMPFILE"
+        mkdir -p "$HOME/.elan/toolchains/$TOOLCHAIN_DIR_NAME"
+        tar --use-compress-program=unzstd -xf "$TMPFILE" \
+            -C "$HOME/.elan/toolchains/$TOOLCHAIN_DIR_NAME" --strip-components=1
+        rm "$TMPFILE"
+        ok "Toolchain $TOOLCHAIN_VER installed."
+    else
+        ok "Lean toolchain already installed."
+    fi
+    # Ensure toolchain bin is in PATH (fallback for environments where elan shims time out)
+    export PATH="$HOME/.elan/toolchains/$TOOLCHAIN_DIR_NAME/bin:$PATH"
+fi
+
 # ── 3. Build the Lean 4 project ──────────────────────────────────────────────
 info "Building DGM (Lean 4)..."
-info "This may take a few minutes on first build (downloading toolchain + compiling)..."
+info "This may take a few minutes on first build (compiling Lean modules)..."
 if lake build; then
     ok "DGM built successfully"
 else

@@ -72,7 +72,7 @@ equivalence, the tighter child is also behaviorally equivalent on that domain. -
 theorem boundTightening_preserves_stable_behavior
     {specParent specChild : AgentSpec}
     (bt : BoundTightening specParent specChild)
-    (h_stable_same : specParent.stableDomain = specChild.stableDomain)
+    (_h_stable_same : specParent.stableDomain = specChild.stableDomain)
     (input : AgentInput) (output : AgentOutput) :
     specParent.stableDomain input →
     specChild.postcondition input output →

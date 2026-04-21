@@ -113,7 +113,7 @@ def readMdLogFile (filepath : String) (doFilter : Bool := true) : IO String := d
 
 /-- Find evaluation log files for a given entry and commit.
 Ported from `find_selfimprove_eval_logs`. -/
-def findEvalLogs (entry outDir : String) (commitId : String := "initial")
+def findEvalLogs (_entry outDir : String) (commitId : String := "initial")
     (doFilter : Bool := true) : IO (List String) := do
   let logDir := s!"{outDir}/{commitId}/logs"
   let dirExists ← System.FilePath.pathExists ⟨logDir⟩
@@ -132,7 +132,7 @@ def findEvalLogs (entry outDir : String) (commitId : String := "initial")
 
 /-- Get the current agent code (possibly modified by previous patches).
 Ported from `get_current_code`. -/
-def getCurrentCode (commit rootDir outDir : String) : IO String := do
+def getCurrentCode (_commit rootDir _outDir : String) : IO String := do
   let codePath := s!"{rootDir}/coding_agent.py"
   let pathExists ← System.FilePath.pathExists ⟨codePath⟩
   if pathExists then

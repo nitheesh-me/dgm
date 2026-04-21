@@ -102,7 +102,7 @@ where
       Simplified parser; production code should use `Lean.Json`. -/
   extractCommandFromJson (json : String) : String :=
     -- Try to find "command": "..." pattern
-    let trimmed := json.trim
+    let trimmed := json.trimAscii.toString
     if trimmed.startsWith "{" then
       -- Simple extraction: find after "command" key
       match trimmed.splitOn "\"command\"" with

@@ -45,7 +45,7 @@ structure EvolutionStep (spec : AgentSpec) where
 the parent and child agents produce outputs with the same resolution status.
 
 This is the key property that ensures upgrades don't break existing functionality. -/
-def BehaviorPreservation (spec : AgentSpec) (parent child : AgentImpl spec) : Prop :=
+def BehaviorPreservation (spec : AgentSpec) (_parent _child : AgentImpl spec) : Prop :=
   ∀ (input : AgentInput),
     spec.stableDomain input →
     ∀ (parentOut childOut : AgentOutput),
@@ -68,7 +68,7 @@ theorem behaviorPreservation_of_stable {spec : AgentSpec}
 the child's behavior satisfies the upgrade specification.
 
 This ensures that upgrades actually implement their intended improvement. -/
-def IntendedChange (delta : UpgradeDelta) (spec : AgentSpec) (child : AgentImpl spec) : Prop :=
+def IntendedChange (delta : UpgradeDelta) (spec : AgentSpec) (_child : AgentImpl spec) : Prop :=
   ∀ (input : AgentInput),
     delta.changeDomain input →
     ∀ (childOut : AgentOutput),

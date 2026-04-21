@@ -8,7 +8,7 @@ def parseFlag (args : List String) (flag : String) : Option String :=
     if arg == flag then
       rest.head?
     else if arg.startsWith (flag ++ "=") then
-      some (arg.drop (flag.length + 1))
+      some ((arg.drop (flag.length + 1)).toString)
     else
       parseFlag rest flag
 
@@ -117,7 +117,8 @@ def main (args : List String) : IO Unit := do
   IO.println s!"  Polyglot:            {config.polyglot}"
   IO.println s!"  Shallow eval:        {config.shallowEval}"
   IO.println s!"  Post-improve diag:   {config.postImproveDiagnose}"
-  IO.println s!"  Run baseline:        {config.runBaseline.getD \"none\"}"
+  let baselineStr := config.runBaseline.getD "none"
+  IO.println s!"  Run baseline:        {baselineStr}"
 
   -- Verify environment
   let anthropicKey ← IO.getEnv "ANTHROPIC_API_KEY"
@@ -134,7 +135,7 @@ def main (args : List String) : IO Unit := do
     IO.eprintln "WARNING: Docker is not available. Agent evaluation will fail."
     IO.eprintln "  Run: sudo usermod -aG docker $USER && newgrp docker"
   else
-    IO.println s!"  Docker version:      {dockerCheck.stdout.trim}"
+    IO.println s!"  Docker version:      {dockerCheck.stdout.trimAscii.toString}"
 
   IO.println ""
 

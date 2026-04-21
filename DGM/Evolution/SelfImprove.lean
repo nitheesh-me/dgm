@@ -68,7 +68,7 @@ structure DiagnosisResult where
 Ported from `diagnose_problem` in `self_improve_step.py`.
 Uses O1 model to analyze logs and generate a problem statement. -/
 def diagnoseProblem (entry parentCommit : String) (rootDir outDir : String)
-    (patchFiles : List String) (maxAttempts : Nat := 5)
+    (patchFiles : List String) (_maxAttempts : Nat := 5)
     (polyglot : Bool := false) : IO (Option DiagnosisResult) := do
   -- 1. Find evaluation logs for the parent
   let logDir := s!"{outDir}/{parentCommit}"
@@ -123,9 +123,9 @@ structure ImprovementDiagnosis where
   score : Int
   deriving Repr, Inhabited
 
-def diagnoseImprovement (entry parentCommit : String) (rootDir : String)
-    (modelPatchFile outDir runId : String) (patchFiles : List String)
-    (maxAttempts : Nat := 5) : IO (Option ImprovementDiagnosis) := do
+def diagnoseImprovement (entry parentCommit : String) (_rootDir : String)
+    (modelPatchFile outDir runId : String) (_patchFiles : List String)
+    (_maxAttempts : Nat := 5) : IO (Option ImprovementDiagnosis) := do
   -- Read the model patch
   let patchExists ← System.FilePath.pathExists ⟨modelPatchFile⟩
   if !patchExists then return none
@@ -165,7 +165,7 @@ where
     match json.splitOn s!"\"{field}\": \"" with
     | [_, rest] => match rest.splitOn "\"" with | val :: _ => val | _ => ""
     | _ => match json.splitOn s!"\"{field}\":" with
-      | [_, rest] => (rest.trim.takeWhile (· != ',') |>.takeWhile (· != '}') |>.trim).toString
+      | [_, rest] => (rest.trimAscii.takeWhile (· != ',') |>.takeWhile (· != '}') |>.trimAscii).toString
       | _ => ""
 
 /-! ## Self-Improvement Result -/
@@ -269,7 +269,7 @@ def selfImprove (config : SelfImproveConfig) : IO SelfImproveResult := do
   let modelPatchExists ← System.FilePath.pathExists ⟨modelPatchPath⟩
   let modelPatchNotEmpty ← if modelPatchExists then do
     let content ← IO.FS.readFile ⟨modelPatchPath⟩
-    pure (decide (content.trim.length > 0))
+    pure !content.trimAscii.isEmpty
   else pure false
   IO.println s!"[SelfImprove] Patch: exists={modelPatchExists}, non-empty={modelPatchNotEmpty}"
 
@@ -347,7 +347,7 @@ where
     -- Parse accuracy_score which is already a float in 0.0-1.0 range
     let score := match json.splitOn "\"accuracy_score\":" with
       | [_, rest] =>
-        let numStr := (rest.trim.takeWhile (fun c => c.isDigit || c == '.' || c == '-')).toString
+        let numStr := (rest.trimAscii.takeWhile (fun c => c.isDigit || c == '.' || c == '-')).toString
         -- Parse "N.M" format
         match numStr.splitOn "." with
         | [intPart, fracPart] =>
