@@ -59,17 +59,17 @@ else
 fi
 
 # ── 2a. Pre-download toolchain if elan can't resolve it ─────────────────────
-TOOLCHAIN_VER="v4.29.0"
-TOOLCHAIN_DIR_NAME="leanprover-lean4-$TOOLCHAIN_VER"
+TOOLCHAIN_VER="${TOOLCHAIN##*:}"                          # e.g. v4.29.0
+TOOLCHAIN_DIR_NAME="leanprover-lean4-${TOOLCHAIN_VER}"  # matches elan directory naming
 if command -v elan &> /dev/null; then
     if ! elan toolchain list 2>/dev/null | grep -q "$TOOLCHAIN_DIR_NAME" && \
        [ ! -d "$HOME/.elan/toolchains/$TOOLCHAIN_DIR_NAME" ]; then
         info "Toolchain not installed locally. Downloading directly from GitHub..."
         ARCH=$(uname -m)
         if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
-            ASSET="lean-4.29.0-linux_aarch64.tar.zst"
+            ASSET="lean-${TOOLCHAIN_VER#v}-linux_aarch64.tar.zst"
         else
-            ASSET="lean-4.29.0-linux.tar.zst"
+            ASSET="lean-${TOOLCHAIN_VER#v}-linux.tar.zst"
         fi
         TMPFILE=$(mktemp /tmp/lean-toolchain-XXXXXX.tar.zst)
         curl --progress-bar -L \
