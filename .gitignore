@@ -25,3 +25,12 @@ polyglot/predictions/
 
 final_results/
 analysis/output/
+
+# Lean 4
+.lake/
+lake-packages/
+build/
+lake-manifest.json
+*.olean
+*.ilean
+*.trace
