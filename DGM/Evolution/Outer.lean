@@ -24,13 +24,13 @@ structure DGMConfig where
   /-- Maximum number of generations. -/
   maxGenerations : Nat := 80
   /-- Number of self-improvement attempts per generation. -/
-  selfImproveSize : Nat := 4
+  selfImproveSize : Nat := 2
   /-- Number of parallel workers. -/
   selfImproveWorkers : Nat := 2
   /-- Selection method for parents. -/
   selectionMethod : SelectionMethod := .scoreChildProp
   /-- Noise leeway for archive admission. -/
-  noiseLeeway : Float := 0.01
+  noiseLeeway : Float := 0.1
   /-- Output directory. -/
   outputDir : String := "output_dgm"
   /-- Previous run directory (for continuation). -/
@@ -40,11 +40,17 @@ structure DGMConfig where
   /-- Whether to force Docker rebuild each generation. -/
   forceRebuild : Bool := false
   /-- Number of evaluation instances per run. -/
-  numEvals : Nat := 10
+  numEvals : Nat := 1
   /-- Whether to run post-improvement diagnosis. -/
-  postImproveDiagnose : Bool := true
-  /-- Whether to run baseline comparison. -/
-  runBaseline : Bool := false
+  postImproveDiagnose : Bool := false
+  /-- Baseline to run: none | "no_selfimprove" | "no_darwin". -/
+  runBaseline : Option String := none
+  /-- Run only shallow (small) evaluation, skip medium/full eval. -/
+  shallowEval : Bool := false
+  /-- Disable full evaluation even for top-performing runs. -/
+  noFullEval : Bool := false
+  /-- Archive update method: "keep_all" | "keep_better". -/
+  updateArchive : String := "keep_all"
   deriving Repr, Inhabited
 
 /-! ## Initialization -/
@@ -153,9 +159,21 @@ def runSelfImprovementsParallel (configs : List SelfImproveConfig)
 This is one iteration of the main loop in `DGM_outer.py`. -/
 def runGeneration (config : DGMConfig) (archive : ConcreteArchive)
     (generation : Nat) (testTaskList : List String) : IO GenerationResult := do
-  -- Step 1: Choose parents
-  let parents ← chooseParents archive config.selfImproveSize config.selectionMethod
+  -- Step 1: Choose parents (handle no_darwin baseline)
+  let parents ← match config.runBaseline with
+    | some "no_darwin" =>
+      -- No Darwin: always use last archive entry as parent
+      match archive.entries.getLast? with
+      | some e => pure [e]
+      | none   => pure []
+    | _ =>
+      chooseParents archive config.selfImproveSize config.selectionMethod
   IO.println s!"  Parents selected: {parents.map (·.runId)}"
+
+  -- Handle no_selfimprove baseline
+  if config.runBaseline == some "no_selfimprove" then
+    IO.println "  [Baseline] no_selfimprove: skipping self-improvement"
+    return { archive := archive, allResults := [], compiledResults := [] }
 
   -- Step 2: Build self-improvement configs
   let selfImproveConfigs := parents.map fun parent => {
@@ -166,8 +184,9 @@ def runGeneration (config : DGMConfig) (archive : ConcreteArchive)
     postImproveDiagnose := config.postImproveDiagnose
     entry := parent.entry
     testTaskList := testTaskList
-    fullEvalThreshold := getFullEvalThreshold archive
+    fullEvalThreshold := if config.noFullEval then 1000000.0 else getFullEvalThreshold archive
     runBaseline := config.runBaseline
+    shallowEval := config.shallowEval
     polyglot := config.polyglot
     : SelfImproveConfig
   }
@@ -180,7 +199,7 @@ def runGeneration (config : DGMConfig) (archive : ConcreteArchive)
 
   -- Step 5: Update archive
   let newEntries := compiled.map (·.toArchiveMetadata generation)
-  let newArchive := updateArchive archive newEntries config.noiseLeeway
+  let newArchive := updateArchive archive newEntries config.noiseLeeway config.updateArchive
 
   -- Save generation state
   saveArchiveState s!"{config.outputDir}/dgm_metadata.jsonl"

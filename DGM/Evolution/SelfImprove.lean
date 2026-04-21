@@ -33,7 +33,7 @@ structure SelfImproveConfig where
   /-- Number of evaluation instances. -/
   numEvals : Nat := 10
   /-- Whether to run post-improvement diagnosis. -/
-  postImproveDiagnose : Bool := true
+  postImproveDiagnose : Bool := false
   /-- The SWE-bench entry to use for diagnosis. -/
   entry : String
   /-- Task list for evaluation. -/
@@ -41,11 +41,13 @@ structure SelfImproveConfig where
   /-- Extended task list for deeper evaluation. -/
   testTaskListMore : List String := []
   /-- Score threshold for extended evaluation. -/
-  testMoreThreshold : Float := 0.5
-  /-- Threshold for full evaluation. -/
+  testMoreThreshold : Float := 0.4
+  /-- Threshold for full evaluation (use Float.infinity to disable). -/
   fullEvalThreshold : Float := 0.6
-  /-- Whether to run baseline comparison. -/
-  runBaseline : Bool := false
+  /-- Baseline to run: none | "no_selfimprove" | "no_darwin". -/
+  runBaseline : Option String := none
+  /-- Run only shallow (small task list) evaluation. -/
+  shallowEval : Bool := false
   /-- Whether to use polyglot benchmark. -/
   polyglot : Bool := false
   deriving Repr, Inhabited

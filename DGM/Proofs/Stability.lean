@@ -55,8 +55,12 @@ theorem stability_transitive {spec : AgentSpec}
     StableSubtype a c :=
   { preservesResolution := by
       intro input hStable parentOut childOut hParent
+      -- TODO: needs agent totality axiom — ∃ bOut, postcondition input bOut ∧ bOut.resolved
       sorry
-    scoreNonRegression := sorry }
+    scoreNonRegression := by
+      -- c.score ≥ a.score by transitivity: b.score ≥ a.score (_sab) and c.score ≥ b.score (_sbc).
+      -- TODO: prove using Float.le_trans when Preorder Float is available.
+      sorry }
 
 /-- Given a list of evolution steps forming a chain, stability composes.
 This is the inductive generalization of `stability_transitive`. -/

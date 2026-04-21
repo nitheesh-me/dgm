@@ -165,12 +165,20 @@ def qualifiesForAdmission (archive : ConcreteArchive) (score : Float)
   | _  => score ≥ archive.worstScore - noiseLeeway
 
 /-- Update the archive with new run results.
-Ported from `update_archive` in `DGM_outer.py`. -/
+Ported from `update_archive` in `DGM_outer.py`.
+
+- `method = "keep_all"`: admit any run that passes the noise-leeway threshold.
+- `method = "keep_better"`: admit only runs strictly above the worst archive score. -/
 def updateArchive (archive : ConcreteArchive)
-    (newEntries : List ArchiveMetadata) (noiseLeeway : Float := 0.01)
+    (newEntries : List ArchiveMetadata) (noiseLeeway : Float := 0.1)
+    (method : String := "keep_all")
     : ConcreteArchive :=
-  let qualified := newEntries.filter fun e =>
-    qualifiesForAdmission archive e.score noiseLeeway
+  let qualified := match method with
+    | "keep_better" =>
+      newEntries.filter fun e => e.score ≥ archive.worstScore
+    | _ =>  -- "keep_all": admit based on noise leeway
+      newEntries.filter fun e =>
+        qualifiesForAdmission archive e.score noiseLeeway
   let combined := archive.entries ++ qualified
   let sorted := combined.mergeSort (fun a b => a.score > b.score)
   { entries := sorted }

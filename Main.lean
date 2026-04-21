@@ -16,6 +16,10 @@ def parseFlag (args : List String) (flag : String) : Option String :=
 def hasFlag (args : List String) (flag : String) : Bool :=
   args.any (· == flag)
 
+/-- Parse a flag that may appear under multiple aliases. -/
+def parseFlagAlias (args : List String) (flags : List String) : Option String :=
+  flags.findSome? (parseFlag args ·)
+
 /-- Parse a Nat from args, with a default. -/
 def parseFlagNat (args : List String) (flag : String) (default : Nat) : Nat :=
   match parseFlag args flag with
@@ -47,17 +51,21 @@ def printUsage : IO Unit := do
   IO.println "Usage: dgm_main [options]"
   IO.println ""
   IO.println "Options:"
-  IO.println "  --max_generation N       Maximum evolution generations (default: 80)"
-  IO.println "  --selfimprove_size N     Self-improvement attempts per generation (default: 2)"
-  IO.println "  --selfimprove_workers N  Parallel workers (default: 2)"
-  IO.println "  --choose_method METHOD   Selection: random|best|score_prop|score_child_prop (default: score_child_prop)"
-  IO.println "  --continue_from DIR      Continue from a previous run directory"
-  IO.println "  --num_swe_evals N        Number of SWE evaluations per attempt (default: 1)"
-  IO.println "  --eval_noise F           Noise leeway for archive admission (default: 0.01)"
-  IO.println "  --polyglot               Use polyglot benchmark instead of SWE-bench"
-  IO.println "  --post_improve_diagnose  Enable post-improvement diagnosis"
-  IO.println "  --run_baseline METHOD    Run baseline: no_selfimprove|no_darwin"
-  IO.println "  --help                   Show this help message"
+  IO.println "  --max_generation N                Maximum evolution generations (default: 80)"
+  IO.println "  --selfimprove_size N              Self-improvement attempts per generation (default: 2)"
+  IO.println "  --selfimprove_workers N           Parallel workers (default: 2)"
+  IO.println "  --choose_method METHOD            Selection: random|best|score_prop|score_child_prop (default: score_child_prop)"
+  IO.println "  --choose_selfimproves_method M    Alias for --choose_method"
+  IO.println "  --continue_from DIR               Continue from a previous run directory"
+  IO.println "  --num_swe_evals N                 Number of SWE evaluations per attempt (default: 1)"
+  IO.println "  --eval_noise F                    Noise leeway for archive admission (default: 0.1)"
+  IO.println "  --polyglot                        Use polyglot benchmark instead of SWE-bench"
+  IO.println "  --post_improve_diagnose           Enable post-improvement diagnosis"
+  IO.println "  --shallow_eval                    Run only shallow (small) evaluation"
+  IO.println "  --no_full_eval                    Disable full evaluation for top performers"
+  IO.println "  --update_archive METHOD           Archive update: keep_all|keep_better (default: keep_all)"
+  IO.println "  --run_baseline METHOD             Run baseline: no_selfimprove|no_darwin"
+  IO.println "  --help                            Show this help message"
   IO.println ""
   IO.println "Setup:"
   IO.println "  export OPENAI_API_KEY='...'"
@@ -78,23 +86,28 @@ def main (args : List String) : IO Unit := do
   IO.println "╚══════════════════════════════════════════════════════╝"
 
   -- Parse CLI arguments (mirrors Python argparse in DGM_outer.py)
-  let selectionMethod := match parseFlag args "--choose_method" with
+  -- Accept both --choose_method and --choose_selfimproves_method (Python compat)
+  let selectionMethod :=
+    match parseFlagAlias args ["--choose_method", "--choose_selfimproves_method"] with
     | some "random"          => DGM.Types.SelectionMethod.random
     | some "best"            => DGM.Types.SelectionMethod.best
     | some "score_prop"      => DGM.Types.SelectionMethod.scoreProp
     | some "score_child_prop" | _ => DGM.Types.SelectionMethod.scoreChildProp
 
   let config : DGM.Evolution.Outer.DGMConfig := {
-    maxGenerations    := parseFlagNat args "--max_generation" 80
-    selfImproveSize   := parseFlagNat args "--selfimprove_size" 2
-    selfImproveWorkers := parseFlagNat args "--selfimprove_workers" 2
-    selectionMethod   := selectionMethod
-    noiseLeeway       := parseFlagFloat args "--eval_noise" 0.01
-    prevRunDir        := parseFlag args "--continue_from"
-    polyglot          := hasFlag args "--polyglot"
-    numEvals          := parseFlagNat args "--num_swe_evals" 1
+    maxGenerations      := parseFlagNat args "--max_generation" 80
+    selfImproveSize     := parseFlagNat args "--selfimprove_size" 2
+    selfImproveWorkers  := parseFlagNat args "--selfimprove_workers" 2
+    selectionMethod     := selectionMethod
+    noiseLeeway         := parseFlagFloat args "--eval_noise" 0.1
+    prevRunDir          := parseFlag args "--continue_from"
+    polyglot            := hasFlag args "--polyglot"
+    numEvals            := parseFlagNat args "--num_swe_evals" 1
     postImproveDiagnose := hasFlag args "--post_improve_diagnose"
-    runBaseline       := hasFlag args "--run_baseline"
+    runBaseline         := parseFlag args "--run_baseline"
+    shallowEval         := hasFlag args "--shallow_eval"
+    noFullEval          := hasFlag args "--no_full_eval"
+    updateArchive       := (parseFlag args "--update_archive").getD "keep_all"
   }
 
   IO.println s!"Config:"
@@ -102,7 +115,9 @@ def main (args : List String) : IO Unit := do
   IO.println s!"  Self-improve size:   {config.selfImproveSize}"
   IO.println s!"  Workers:             {config.selfImproveWorkers}"
   IO.println s!"  Polyglot:            {config.polyglot}"
+  IO.println s!"  Shallow eval:        {config.shallowEval}"
   IO.println s!"  Post-improve diag:   {config.postImproveDiagnose}"
+  IO.println s!"  Run baseline:        {config.runBaseline.getD \"none\"}"
 
   -- Verify environment
   let anthropicKey ← IO.getEnv "ANTHROPIC_API_KEY"
