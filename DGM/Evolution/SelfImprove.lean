@@ -370,29 +370,44 @@ where
       totalEmptyPatchIds := []
     }
 
-  /-- Save run metadata to JSON. -/
+  /-- Save run metadata to JSON.
+  Matches Python `save_metadata` format including all performance fields. -/
   saveMetadata (runDir : String) (result : SelfImproveResult) : IO Unit := do
+    let toJsonArray (ids : List String) : String :=
+      "[" ++ String.intercalate ", " (ids.map fun id => s!"\"{id}\"") ++ "]"
     let json := s!"\{\"run_id\": \"{result.runId}\", " ++
       s!"\"parent_commit\": \"{result.parentCommit}\", " ++
       s!"\"entry\": \"{result.entry}\", " ++
       s!"\"model_patch_exists\": {result.modelPatchExists}, " ++
-      s!"\"model_patch_not_empty\": {result.modelPatchNotEmpty}, " ++
+      s!"\"model_patch_notempty\": {result.modelPatchNotEmpty}, " ++
       s!"\"is_compiled\": {result.isCompiled}, " ++
       s!"\"overall_performance\": \{" ++
       s!"\"accuracy_score\": {result.overallPerformance.accuracyScore}, " ++
       s!"\"total_resolved_instances\": {result.overallPerformance.totalResolvedInstances}, " ++
-      s!"\"total_submitted_instances\": {result.overallPerformance.totalSubmittedInstances}}}"
+      s!"\"total_submitted_instances\": {result.overallPerformance.totalSubmittedInstances}, " ++
+      s!"\"total_resolved_ids\": {toJsonArray result.overallPerformance.totalResolvedIds}, " ++
+      s!"\"total_unresolved_ids\": {toJsonArray result.overallPerformance.totalUnresolvedIds}, " ++
+      s!"\"total_emptypatch_ids\": {toJsonArray result.overallPerformance.totalEmptyPatchIds}}}"
     DGM.Utils.Common.writeFile s!"{runDir}/metadata.json" json
 
 /-! ## Compilation Filtering -/
 
 /-- Check if a self-improvement run produced a valid (compiled) agent.
-Ported from `is_compiled_self_improve` in `utils/evo_utils.py`. -/
+Ported from `is_compiled_self_improve` in `utils/evo_utils.py`.
+
+Checks:
+1. `overall_performance` has the required keys (non-empty performance data)
+2. At least one non-empty patch: resolved + unresolved > 0
+3. total_submitted_instances > 0 (can be further constrained by test list length) -/
 def isCompiledRun (result : SelfImproveResult) : Bool :=
-  result.isCompiled &&
+  let perf := result.overallPerformance
+  -- 1. Must have run the benchmark (total_submitted_instances > 0)
+  perf.totalSubmittedInstances > 0 &&
+  -- 2. Must have at least one non-empty patch (resolved + unresolved > 0)
+  (perf.totalResolvedIds.length + perf.totalUnresolvedIds.length > 0) &&
+  -- 3. Must have a valid patch
   result.modelPatchExists &&
-  result.modelPatchNotEmpty &&
-  result.overallPerformance.totalSubmittedInstances > 0
+  result.modelPatchNotEmpty
 
 /-- Filter a list of results to only compiled runs.
 Ported from `filter_compiled` in `DGM_outer.py`. -/

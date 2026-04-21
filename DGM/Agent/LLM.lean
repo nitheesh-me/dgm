@@ -525,4 +525,17 @@ def extractJsonBetweenMarkers (text : String) : Option String :=
         else none
     | _ => none
 
+/-! ## Batch Responses -/
+
+/-- Get N independent LLM responses for the same message.
+Ported from `get_batch_responses_from_llm` in `llm.py`.
+Useful for diversity sampling (returns `nResponses` completions). -/
+def getBatchResponsesFromLLM (client : LLMClient) (messages : List Message)
+    (systemMessage : String) (nResponses : Nat) : IO (List String) := do
+  let mut responses : List String := []
+  for _ in List.range nResponses do
+    let resp ← callLLMWithRetry client messages systemMessage
+    responses := responses ++ [resp.content]
+  return responses
+
 end DGM.Agent

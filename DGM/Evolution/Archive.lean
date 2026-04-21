@@ -245,20 +245,28 @@ where
     | _ => []
 
 /-- Save archive state to JSONL metadata file.
-Matches Python format:
+Matches Python format exactly:
 ```json
-{"generation": N, "selfimprove_entries": [...], "children": [...], "children_compiled": [...], "archive": [...]}
+{"generation": N, "selfimprove_entries": [["parent_id", "entry_id"], ...], "children": [...], "children_compiled": [...], "archive": [...]}
 ```
+- `selfimproveEntries`: list of (parentCommit, entry) pairs chosen this generation
 - `allChildren`: run IDs of all self-improvement attempts this generation
 - `compiledChildren`: run IDs of compiled (valid) runs only -/
 def saveArchiveState (metadataPath : String) (generation : Nat)
-    (archive : ConcreteArchive) (allChildren compiledChildren : List String) : IO Unit := do
+    (archive : ConcreteArchive)
+    (selfimproveEntries : List (String × String))
+    (allChildren compiledChildren : List String) : IO Unit := do
   let archiveIds := archive.entries.map (·.runId)
   let archiveJson := "[" ++ String.intercalate ", " (archiveIds.map fun id => s!"\"{id}\"") ++ "]"
   let allChildrenJson := "[" ++ String.intercalate ", " (allChildren.map fun id => s!"\"{id}\"") ++ "]"
   let compiledChildrenJson := "[" ++ String.intercalate ", " (compiledChildren.map fun id => s!"\"{id}\"") ++ "]"
-  let line := s!"\{\"generation\": {generation}, \"children\": {allChildrenJson}, " ++
-    s!"\"children_compiled\": {compiledChildrenJson}, \"archive\": {archiveJson}}"
+  let entriesJson := "[" ++ String.intercalate ", "
+    (selfimproveEntries.map fun (p, e) => s!"[\"{p}\", \"{e}\"]") ++ "]"
+  let line := s!"\{\"generation\": {generation}, " ++
+    s!"\"selfimprove_entries\": {entriesJson}, " ++
+    s!"\"children\": {allChildrenJson}, " ++
+    s!"\"children_compiled\": {compiledChildrenJson}, " ++
+    s!"\"archive\": {archiveJson}}"
   -- Ensure parent directory exists
   let dir := System.FilePath.mk metadataPath |>.parent
   match dir with

@@ -50,7 +50,7 @@ def printUsage : IO Unit := do
   IO.println ""
   IO.println "Usage: dgm_main [options]"
   IO.println ""
-  IO.println "Options:"
+  IO.println "Evolution Mode (DGM_outer.py equivalent):"
   IO.println "  --max_generation N                Maximum evolution generations (default: 80)"
   IO.println "  --selfimprove_size N              Self-improvement attempts per generation (default: 2)"
   IO.println "  --selfimprove_workers N           Parallel workers (default: 2)"
@@ -65,6 +65,20 @@ def printUsage : IO Unit := do
   IO.println "  --no_full_eval                    Disable full evaluation for top performers"
   IO.println "  --update_archive METHOD           Archive update: keep_all|keep_better (default: keep_all)"
   IO.println "  --run_baseline METHOD             Run baseline: no_selfimprove|no_darwin"
+  IO.println "  --output_dir DIR                  Output directory (default: output_dgm)"
+  IO.println ""
+  IO.println "Eval Mode (test_swebench.py equivalent):"
+  IO.println "  --eval                            Run standalone evaluation (no evolution)"
+  IO.println "  --model_patch_paths P1,P2,...     Comma-separated patch file paths"
+  IO.println "  --model_name_or_path NAME         Name/ID for this evaluation run"
+  IO.println "  --max_workers N                   Number of parallel workers (default: 5)"
+  IO.println "  --num_evals N                     Number of repeated evaluations (default: 1)"
+  IO.println "  --num_evals_parallel N            Parallel repeated evaluations (default: 1)"
+  IO.println "  --full_eval                       Evaluate on full dataset"
+  IO.println "  --test_big                        Evaluate on big subset"
+  IO.println "  --test_med                        Evaluate on medium subset"
+  IO.println "  --num_samples N                   Number of samples (-1 = all, default: -1)"
+  IO.println ""
   IO.println "  --help                            Show this help message"
   IO.println ""
   IO.println "Setup:"
@@ -74,12 +88,80 @@ def printUsage : IO Unit := do
   IO.println "  lake build                # Build the project"
   IO.println "  lake exec dgm_main       # Run DGM"
 
+/-- Run standalone evaluation mode (equivalent to test_swebench.py). -/
+def runEvalMode (args : List String) : IO Unit := do
+  IO.println "Darwin Gödel Machine — Eval Mode (test_swebench.py equivalent)"
+  IO.println ""
+
+  -- Parse eval-mode args
+  let maxWorkers    := parseFlagNat args "--max_workers" 5
+  let numEvals      := parseFlagNat args "--num_evals" 1
+  let numEvalsParal := parseFlagNat args "--num_evals_parallel" 1
+  let numSamples    := parseFlagNat args "--num_samples" 0  -- 0 = all
+  let polyglot      := hasFlag args "--polyglot"
+  let fullEval      := hasFlag args "--full_eval"
+  let testBig       := hasFlag args "--test_big"
+  let testMed       := hasFlag args "--test_med"
+
+  -- Model patch paths
+  let patchPathsStr  := (parseFlag args "--model_patch_paths").getD ""
+  let patchPaths     := if patchPathsStr.isEmpty then []
+                        else patchPathsStr.splitOn ","
+
+  -- Model name
+  let ns ← IO.monoNanosNow
+  let defaultName := s!"original_{ns}"
+  let modelName := (parseFlag args "--model_name_or_path").getD defaultName
+
+  -- Load test task list
+  let subsetDir := if polyglot then "./polyglot/subsets" else "./swe_bench/subsets"
+  let taskListPath := if fullEval then ""
+    else if testBig then s!"{subsetDir}/big.json"
+    else if testMed then s!"{subsetDir}/medium.json"
+    else s!"{subsetDir}/small.json"
+
+  IO.println s!"Eval config:"
+  IO.println s!"  Model:           {modelName}"
+  IO.println s!"  Patch paths:     {patchPaths}"
+  IO.println s!"  Max workers:     {maxWorkers}"
+  IO.println s!"  Num evals:       {numEvals}"
+  IO.println s!"  Parallel evals:  {numEvalsParal}"
+  IO.println s!"  Full eval:       {fullEval}"
+  IO.println s!"  Num samples:     {if numSamples == 0 then "all" else toString numSamples}"
+  IO.println s!"  Task list:       {if taskListPath.isEmpty then "full dataset" else taskListPath}"
+  IO.println ""
+
+  -- Build the harness command (delegates to Python harness for actual Docker eval)
+  let patchArgs := patchPaths.foldl (fun acc p => acc ++ [" --model_patch_paths", p]) []
+  let patchArgsStr := String.intercalate " " patchArgs
+  let cmd := s!"python -m swe_bench.harness " ++
+    s!"--model_name_or_path {modelName} " ++
+    s!"{patchArgsStr} " ++
+    s!"--max_workers {maxWorkers} " ++
+    s!"--num_evals {numEvals} " ++
+    s!"--num_evals_parallel {numEvalsParal} " ++
+    (if fullEval then "" else s!"--test_task_list {taskListPath} ") ++
+    (if numSamples > 0 then s!"--num_samples {numSamples}" else "")
+  IO.println s!"Running: {cmd}"
+  let result ← IO.Process.output { cmd := "bash", args := #["-c", cmd] }
+  if result.exitCode != 0 then
+    IO.eprintln s!"Harness failed with exit code {result.exitCode}"
+    IO.eprintln result.stderr
+  else
+    IO.println result.stdout
+  IO.println "Eval complete."
+
 /-- Darwin Gödel Machine — Lean 4 entry point.
-    Runs the outer evolutionary loop with verified self-improvement. -/
+    Supports both evolution mode (DGM_outer.py) and
+    standalone eval mode (test_swebench.py). -/
 def main (args : List String) : IO Unit := do
   if hasFlag args "--help" || hasFlag args "-h" then
     printUsage
     return
+
+  -- Eval mode: standalone evaluation (test_swebench.py equivalent)
+  if hasFlag args "--eval" then
+    return ← runEvalMode args
 
   IO.println "╔══════════════════════════════════════════════════════╗"
   IO.println "║  Darwin Gödel Machine (Lean 4 — Verified Evolution) ║"
@@ -94,12 +176,15 @@ def main (args : List String) : IO Unit := do
     | some "score_prop"      => DGM.Types.SelectionMethod.scoreProp
     | some "score_child_prop" | _ => DGM.Types.SelectionMethod.scoreChildProp
 
+  let outputDir := (parseFlag args "--output_dir").getD "output_dgm"
+
   let config : DGM.Evolution.Outer.DGMConfig := {
     maxGenerations      := parseFlagNat args "--max_generation" 80
     selfImproveSize     := parseFlagNat args "--selfimprove_size" 2
     selfImproveWorkers  := parseFlagNat args "--selfimprove_workers" 2
     selectionMethod     := selectionMethod
     noiseLeeway         := parseFlagFloat args "--eval_noise" 0.1
+    outputDir           := outputDir
     prevRunDir          := parseFlag args "--continue_from"
     polyglot            := hasFlag args "--polyglot"
     numEvals            := parseFlagNat args "--num_swe_evals" 1
@@ -114,6 +199,7 @@ def main (args : List String) : IO Unit := do
   IO.println s!"  Max generations:     {config.maxGenerations}"
   IO.println s!"  Self-improve size:   {config.selfImproveSize}"
   IO.println s!"  Workers:             {config.selfImproveWorkers}"
+  IO.println s!"  Output dir:          {config.outputDir}"
   IO.println s!"  Polyglot:            {config.polyglot}"
   IO.println s!"  Shallow eval:        {config.shallowEval}"
   IO.println s!"  Post-improve diag:   {config.postImproveDiagnose}"
