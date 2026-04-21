@@ -140,8 +140,8 @@ def countFullEvalIssues : IO Nat := do
     let pathExists ← System.FilePath.pathExists ⟨path⟩
     if pathExists then
       let content ← IO.FS.readFile ⟨path⟩
-      -- Count quoted strings containing a '-' (these are issue IDs)
-      let count := content.splitOn "\"" |>.filter (fun s => s.contains '-') |>.length
+      -- SWE-bench issue IDs always contain '__' (e.g. "django__django-12345")
+      let count := content.splitOn "\"" |>.filter (·.containsSubstr "__") |>.length
       total := total + count
   return if total == 0 then 100 else total
 
@@ -200,7 +200,9 @@ def anyExceedingContextLength (outputDir commitId : String)
 def listPickRandom {α : Type} (items : List α) (r : Float) (fallback : α) : α :=
   if items.isEmpty then fallback
   else
-    let idx := (r * Float.ofNat items.length).toUInt64.toNat % items.length
+    -- Clamp r to [0, 1), then scale to [0, len)
+    let r' := if r < 0.0 then 0.0 else if r >= 1.0 then 0.9999 else r
+    let idx := (r' * Float.ofNat items.length).floor.toUSize.toNat % items.length
     -- Walk the list to index idx
     let rec go : List α → Nat → α
       | [], _       => fallback
@@ -244,8 +246,8 @@ def pickSelfImproveEntry (outputDir parentCommit : String) (info : RunPerformanc
   let unresolvedIds := info.unresolvedIds
   let numTotal      := emptyIds.length + resolvedIds.length + unresolvedIds.length
   if polyglot then
-    let pool := let pool0 := emptyIds ++ unresolvedIds
-                if pool0.isEmpty then resolvedIds ++ emptyIds ++ unresolvedIds else pool0
+    let pool0 := emptyIds ++ unresolvedIds
+    let pool  := if pool0.isEmpty then resolvedIds else pool0
     if pool.isEmpty then return "solve_all"
     let r ← randomFloat
     return listPickRandom pool r "solve_all"

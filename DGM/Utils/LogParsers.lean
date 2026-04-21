@@ -53,9 +53,9 @@ def parseLogPytestV2 (log : String) : List (String × TestStatus) :=
     -- Format: "PASSED path/test.py::test_name" or "test_name PASSED"
     if trimmed.startsWith "PASSED " then
       let rest := (trimmed.drop 7).toString.trimAscii.toString
-      -- Handle "FAILED - " format for failed tests
       some (rest.splitOn " " |>.head?.getD rest, TestStatus.passed)
     else if trimmed.startsWith "FAILED " then
+      -- Handle "FAILED test_name - reason" → strip the " - reason" suffix
       let rest := (trimmed.drop 7).toString.trimAscii.toString
       let name := (rest.replace " - " " ").splitOn " " |>.head?.getD rest
       some (name, TestStatus.failed)

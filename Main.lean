@@ -77,7 +77,7 @@ def printUsage : IO Unit := do
   IO.println "  --full_eval                       Evaluate on full dataset"
   IO.println "  --test_big                        Evaluate on big subset"
   IO.println "  --test_med                        Evaluate on medium subset"
-  IO.println "  --num_samples N                   Number of samples (-1 = all, default: -1)"
+  IO.println "  --num_samples N                   Number of samples (0 = all, default: 0)"
   IO.println ""
   IO.println "  --help                            Show this help message"
   IO.println ""
@@ -97,7 +97,8 @@ def runEvalMode (args : List String) : IO Unit := do
   let maxWorkers    := parseFlagNat args "--max_workers" 5
   let numEvals      := parseFlagNat args "--num_evals" 1
   let numEvalsParal := parseFlagNat args "--num_evals_parallel" 1
-  let numSamples    := parseFlagNat args "--num_samples" 0  -- 0 = all
+  -- numSamples=0 means "all" (matches --num_samples default of -1 in Python, but Nat can't be -1)
+  let numSamples    := parseFlagNat args "--num_samples" 0
   let polyglot      := hasFlag args "--polyglot"
   let fullEval      := hasFlag args "--full_eval"
   let testBig       := hasFlag args "--test_big"
